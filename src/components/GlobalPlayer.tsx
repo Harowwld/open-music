@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePlayer } from "@/context/PlayerContext";
 import YouTube from "react-youtube";
-import { Quote, Volume2, MoreHorizontal, ListPlus, Library, Download, Heart } from "lucide-react";
+import { Quote, Volume2, MoreHorizontal, ListPlus, Library, Download, Heart, Disc } from "lucide-react";
 
 export default function GlobalPlayer() {
   const {
@@ -23,6 +23,7 @@ export default function GlobalPlayer() {
     setDuration,
     setProgress,
     updateCurrentTrack,
+    openAlbumModal,
   } = usePlayer();
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
@@ -131,7 +132,7 @@ export default function GlobalPlayer() {
       )}
 
       {/* Hidden Native Audio Player */}
-      {currentTrack && currentTrack.isOffline && (
+      {currentTrack && !!currentTrack.isOffline && (
         <audio
           ref={nativePlayerRef}
           src={`/api/audio/${currentTrack.id}`}
@@ -173,7 +174,7 @@ export default function GlobalPlayer() {
               </span>
               <span className="text-xs text-[var(--text-muted)] truncate max-w-[200px] flex items-center gap-2">
                 {currentTrack.artist}
-                {currentTrack.isOffline && (
+                {!!currentTrack.isOffline && (
                   <span className="text-[10px] bg-[var(--brand-gold)] text-black px-1.5 py-0.5 rounded-full font-bold">
                     OFFLINE
                   </span>
@@ -282,6 +283,15 @@ export default function GlobalPlayer() {
           >
             <Heart className={`w-4 h-4 ${currentTrack.isLiked ? 'fill-current text-[var(--brand-gold)]' : ''}`} /> 
             {currentTrack.isLiked ? "Remove from Liked Songs" : "Save to Liked Songs"}
+          </button>
+          <button 
+            className="w-full text-left px-4 py-2 hover:bg-[var(--card-hover)] hover:text-white transition-colors flex items-center gap-3"
+            onClick={() => {
+              setContextMenu(null);
+              openAlbumModal(currentTrack);
+            }}
+          >
+            <Disc className="w-4 h-4" /> Add to Album
           </button>
           <button 
             className="w-full text-left px-4 py-2 hover:bg-[var(--card-hover)] hover:text-white transition-colors flex items-center gap-3"
