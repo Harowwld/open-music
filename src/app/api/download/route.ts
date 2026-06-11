@@ -64,3 +64,33 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Failed to download track: ' + error.message }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Missing track id' }, { status: 400 });
+    }
+
+    const track = db.prepare('SELECT local_path FROM tracks WHERE id = ?').get(id) as any;
+    if (track && track.local_path) {
+      const dir = path.dirname(track.local_path);
+      if (fs.existsSync(dir)) {
+        const files = fs.readdirSync(dir);
+        const actualFile = files.find(f => f.startsWith(id + '.'));
+        if (actualFile) {
+          fs.unlinkSync(path.join(dir, actualFile));
+        }
+      }
+    }
+
+    db.prepare('UPDATE tracks SET isOffline = 0, local_path = NULL WHERE id = ?').run(id);
+
+    return NextResponse.json({ success: true, message: 'Track deleted' });
+  } catch (error: any) {
+    console.error('Delete error:', error);
+    return NextResponse.json({ error: 'Failed to delete track: ' + error.message }, { status: 500 });
+  }
+}

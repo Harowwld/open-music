@@ -18,11 +18,25 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
       return new NextResponse('Track not found or not offline', { status: 404 });
     }
 
-    const filePath = track.local_path;
+    let filePath = track.local_path;
 
     if (!fs.existsSync(filePath)) {
-      return new NextResponse('File not found on disk', { status: 404 });
+      const dir = path.dirname(filePath);
+      if (fs.existsSync(dir)) {
+        const files = fs.readdirSync(dir);
+        const actualFile = files.find(f => f.startsWith(id + '.'));
+        if (actualFile) {
+          filePath = path.join(dir, actualFile);
+        } else {
+          return new NextResponse('File not found on disk', { status: 404 });
+        }
+      } else {
+        return new NextResponse('File not found on disk', { status: 404 });
+      }
     }
+
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeType = ext === '.opus' ? 'audio/ogg' : ext === '.m4a' ? 'audio/mp4' : ext === '.mp3' ? 'audio/mpeg' : 'audio/webm';
 
     const stat = fs.statSync(filePath);
     const fileSize = stat.size;
@@ -56,7 +70,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
           'Content-Range': `bytes ${start}-${end}/${fileSize}`,
           'Accept-Ranges': 'bytes',
           'Content-Length': chunksize.toString(),
-          'Content-Type': 'audio/webm',
+          'Content-Type': mimeType,
         },
       });
     } else {
@@ -67,7 +81,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
         status: 200,
         headers: {
           'Content-Length': fileSize.toString(),
-          'Content-Type': 'audio/webm',
+          'Content-Type': mimeType,
         },
       });
     }
