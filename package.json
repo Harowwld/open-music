@@ -6,21 +6,63 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "dev:mac": "concurrently \"pnpm run dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "build:mac": "pnpm run build && electron-builder -m"
   },
   "dependencies": {
+    "@distube/ytdl-core": "^4.16.12",
+    "better-sqlite3": "^12.10.0",
+    "ffmpeg-static": "^5.3.0",
+    "lucide-react": "^1.17.0",
     "next": "16.2.9",
+    "play-dl": "^1.9.7",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "react-youtube": "^10.1.0",
+    "youtube-dl-exec": "^3.1.7",
+    "ytmusic-api": "^5.3.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^10.0.3",
+    "electron": "^31.7.7",
+    "electron-builder": "^26.15.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wait-on": "^9.0.10"
+  },
+  "main": "main.js",
+  "build": {
+    "appId": "com.auramusic.app",
+    "productName": "Aura Music",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      ".next/standalone/**/*",
+      ".next/static/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.music"
+    }
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@biomejs/biome",
+      "better-sqlite3",
+      "electron-winstaller",
+      "electron",
+      "sharp",
+      "unrs-resolver",
+      "ffmpeg-static"
+    ]
   }
 }

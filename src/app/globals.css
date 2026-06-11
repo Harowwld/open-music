@@ -1,26 +1,126 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #121212;
+  --foreground: #ffffff;
+  --brand-gold: #a68b6a;
+  --brand-gold-hover: #957a5c;
+  --accent: #6e4f33;
+  --card-bg: #181818;
+  --card-hover: #282828;
+  --sidebar-bg: #000000;
+  --player-bg: #181818;
+  --text-muted: #a7a7a7;
+  --border-color: #282828;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), sans-serif;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* App-like layout */
+}
+
+/* Window Drag Utilities */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Glassmorphism utilities */
+.glass {
+  background: rgba(18, 18, 18, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Custom Easing Curves (Emil Kowalski / macOS style) */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+/* Micro-animations */
+.hover-scale {
+  transition: transform 150ms var(--ease-out), background-color 150ms var(--ease-out);
+}
+
+.press-scale {
+  transition: transform 150ms var(--ease-out);
+}
+
+.press-scale:active {
+  transform: scale(0.97);
+}
+
+.hover-color {
+  transition: color 150ms var(--ease-out);
+}
+
+.hover-color:hover {
+  color: var(--brand-gold);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  border: 3px solid var(--background);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Custom Sliders */
+.custom-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(to right, var(--slider-color, white) var(--slider-percent, 0%), var(--card-hover) var(--slider-percent, 0%));
+  border-radius: 9999px;
+  height: 4px;
+  cursor: pointer;
+}
+
+.custom-slider:hover {
+  --slider-color: var(--brand-gold);
+}
+
+.custom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--slider-color, white);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.1s ease;
+  transform: translateY(-0.5px); /* Center thumb slightly if needed, or leave it */
+}
+
+/* Make thumb visible on hover and adjust color */
+.custom-slider:hover::-webkit-slider-thumb {
+  opacity: 1;
+  background: var(--brand-gold);
+}
+
+/* Optional: Active state when dragging */
+.custom-slider:active::-webkit-slider-thumb {
+  opacity: 1;
+  background: var(--brand-gold);
+  transform: scale(1.2);
 }
