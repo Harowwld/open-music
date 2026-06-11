@@ -5,6 +5,7 @@ import { PlayerProvider } from "@/context/PlayerContext";
 import GlobalPlayer from "@/components/GlobalPlayer";
 import Sidebar from "@/components/Sidebar";
 import LyricsOverlay from "@/components/LyricsOverlay";
+import AlbumModal from "@/components/AlbumModal";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -33,6 +34,7 @@ export default function RootLayout({
             </main>
           </div>
           <GlobalPlayer />
+          <AlbumModal />
         </PlayerProvider>
       </body>
     </html>
