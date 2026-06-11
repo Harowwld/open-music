@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { usePlayer, Track } from "@/context/PlayerContext";
-import { Search, Play, Pause, ListPlus, Library, Download, Loader2, Heart } from "lucide-react";
+import { Search, Play, Pause, ListPlus, Library, Download, Loader2, Heart, Disc } from "lucide-react";
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const { playTrack, currentTrack, isPlaying } = usePlayer();
+  const { playTrack, currentTrack, isPlaying, openAlbumModal } = usePlayer();
 
   const [suggestions, setSuggestions] = useState<Track[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -270,6 +270,16 @@ export default function SearchPage() {
           >
             <Heart className={`w-4 h-4 ${contextMenu.track.isLiked ? 'fill-current text-[var(--brand-gold)]' : ''}`} /> 
             {contextMenu.track.isLiked ? "Unlike" : "Like"}
+          </button>
+          <button 
+            className="w-full text-left px-4 py-2 hover:bg-[var(--card-hover)] hover:text-white transition-colors flex items-center gap-3"
+            onClick={() => {
+              const track = contextMenu.track;
+              setContextMenu(null);
+              openAlbumModal(track);
+            }}
+          >
+            <Disc className="w-4 h-4" /> Add to Album
           </button>
           <button 
             className="w-full text-left px-4 py-2 hover:bg-[var(--card-hover)] hover:text-white transition-colors flex items-center gap-3"

@@ -2,24 +2,32 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Heart } from "lucide-react";
+import { Heart, Disc } from "lucide-react";
 
 export default function LibraryIndex() {
   const [songCount, setSongCount] = useState<number | null>(null);
+  const [albums, setAlbums] = useState<any[]>([]);
 
   useEffect(() => {
-    const fetchCount = async () => {
+    const fetchData = async () => {
       try {
-        const res = await fetch(`/api/library`);
-        if (res.ok) {
-          const data = await res.json();
-          setSongCount(data.tracks?.length || 0);
+        const [libRes, albRes] = await Promise.all([
+          fetch(`/api/library`),
+          fetch(`/api/albums`)
+        ]);
+        if (libRes.ok) {
+          const libData = await libRes.json();
+          setSongCount(libData.tracks?.length || 0);
+        }
+        if (albRes.ok) {
+          const albData = await albRes.json();
+          setAlbums(albData.albums || []);
         }
       } catch (err) {
         console.error(err);
       }
     };
-    fetchCount();
+    fetchData();
   }, []);
 
   return (
@@ -40,6 +48,23 @@ export default function LibraryIndex() {
               </p>
             </div>
           </Link>
+          
+          {albums.map(album => (
+            <Link key={album.id} href={`/library/album/${album.id}`} className="group">
+              <div className="bg-[var(--card-bg)] p-4 rounded-xl hover:bg-[var(--card-hover)] transition-all duration-300 cursor-pointer h-full flex flex-col hover:shadow-xl hover:-translate-y-1">
+                <div className="relative w-full aspect-square rounded-md overflow-hidden mb-4 shadow-lg bg-gray-800 flex items-center justify-center">
+                  {album.cover_image ? (
+                    <img src={album.cover_image} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" />
+                  ) : (
+                    <Disc className="w-16 h-16 text-gray-500 transition-transform duration-300 group-hover:scale-110" />
+                  )}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
+                </div>
+                <h3 className="font-bold text-white text-lg mb-1 truncate">{album.title}</h3>
+                <p className="text-sm text-[var(--text-muted)]">Playlist</p>
+              </div>
+            </Link>
+          ))}
         </div>
       </div>
     </div>

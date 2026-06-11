@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { usePlayer, Track } from "@/context/PlayerContext";
-import { Play, Trash2, Download, Heart } from "lucide-react";
+import { Play, Trash2, Download, Heart, Disc } from "lucide-react";
 
 export default function LibraryPage() {
   const [results, setResults] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const { playTrack, currentTrack, isPlaying } = usePlayer();
+  const { playTrack, currentTrack, isPlaying, openAlbumModal } = usePlayer();
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: Track } | null>(null);
 
@@ -186,6 +186,16 @@ export default function LibraryPage() {
             }}
           >
             <Heart className="w-4 h-4" /> Unlike
+          </button>
+          <button 
+            className="w-full text-left px-4 py-2 hover:bg-[var(--card-hover)] hover:text-white transition-colors flex items-center gap-2"
+            onClick={() => {
+              const track = contextMenu.track;
+              setContextMenu(null);
+              openAlbumModal(track);
+            }}
+          >
+            <Disc className="w-4 h-4" /> Add to Album
           </button>
           <button 
             className="w-full text-left px-4 py-2 hover:bg-[var(--card-hover)] hover:text-white transition-colors flex items-center gap-2"
