@@ -1,14 +1,10 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## 🚀 Building for Windows (Easy Way / No Code Required)
+## 🚀 Download for Windows
 
-If you don't have a developer environment or VS Code installed, you can build the `.exe` Windows app automatically using GitHub Actions in your browser:
+The easiest way to install Open Music on Windows is to download the latest `.exe` from the **[Releases page](https://github.com/Harowwld/open-music/releases)**!
 
-1. **Fork this repository**: Click the "Fork" button at the top right of this GitHub page.
-2. **Enable Workflows**: Go to the **Actions** tab in your new forked repository and click "I understand my workflows, go ahead and enable them".
-3. **Run the Build**: In the left sidebar under "Workflows", click **Build Windows App**.
-4. **Start it**: Click the **Run workflow** dropdown button on the right side and click the green **Run workflow** button.
-5. **Download your App**: Wait a few minutes for the build to finish (it will show a green checkmark). Click on the completed run, scroll down to the **Artifacts** section at the bottom of the page, and download the `Open-Music-Windows` zip file containing your `.exe` installer!
+*(Note to developers: The Windows release is automatically compiled via GitHub Actions to ensure native modules are correctly built for Windows environments).*
 
 ---
 
