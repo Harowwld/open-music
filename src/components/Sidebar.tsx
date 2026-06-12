@@ -24,10 +24,10 @@ export default function Sidebar() {
   return (
     <nav className="w-64 bg-[var(--sidebar-bg)] h-full flex flex-col pt-12 p-6 gap-6 drag-region">
       <div className="flex items-center gap-2 mb-4 no-drag cursor-default">
-        <div className="w-8 h-8 rounded-full bg-[var(--brand-gold)] flex items-center justify-center font-bold text-black">
-          A
+        <div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden">
+          <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
         </div>
-        <h1 className="text-xl font-bold tracking-tight text-white">Aura Music</h1>
+        <h1 className="text-xl font-bold tracking-tight text-white">Open Music</h1>
       </div>
 
       <div className="flex flex-col gap-4 no-drag">

@@ -1,5 +1,5 @@
 {
-  "name": "music-scraper",
+  "name": "open-music",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "dev:mac": "concurrently \"pnpm run dev\" \"wait-on http://localhost:3000 && electron .\"",
-    "build:mac": "pnpm run build && electron-builder -m"
+    "build:mac": "pnpm run build && mkdir -p .next/standalone/public .next/standalone/.next/static && cp -R public/* .next/standalone/public/ && cp -R .next/static/* .next/standalone/.next/static/ && electron-builder -m"
   },
   "dependencies": {
     "@distube/ytdl-core": "^4.16.12",
@@ -43,8 +43,8 @@
   },
   "main": "main.js",
   "build": {
-    "appId": "com.auramusic.app",
-    "productName": "Aura Music",
+    "appId": "com.openmusic.app",
+    "productName": "Open Music",
     "directories": {
       "output": "dist"
     },
@@ -53,6 +53,9 @@
       "build/icon.png",
       ".next/standalone/**/*",
       ".next/static/**/*"
+    ],
+    "asarUnpack": [
+      ".next/**/*"
     ],
     "mac": {
       "category": "public.app-category.music"

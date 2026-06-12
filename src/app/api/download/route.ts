@@ -26,20 +26,24 @@ export async function POST(req: Request) {
 
     const localPath = path.join(offlineDir, `${track.id}.webm`);
 
-    // Download directly using youtube-dl-exec (yt-dlp wrapper)
-    await youtubedl(`https://www.youtube.com/watch?v=${track.id}`, {
-      extractAudio: true,
-      audioFormat: 'opus',
-      ffmpegLocation: ffmpeg as string,
-      output: localPath,
-      noWarnings: true,
-      noCheckCertificates: true,
-      preferFreeFormats: true,
-      addHeader: [
-        'referer:youtube.com',
-        'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      ]
-    });
+    // Bypass youtubedl wrapper because tinyspawn fails on paths with spaces (e.g. "Open Music.app")
+    const { execFile } = require('child_process');
+    const { promisify } = require('util');
+    const execFileAsync = promisify(execFile);
+    
+    // @ts-ignore
+    await execFileAsync(youtubedl.constants.YOUTUBE_DL_PATH, [
+      `https://www.youtube.com/watch?v=${track.id}`,
+      '--extract-audio',
+      '--audio-format', 'opus',
+      '--ffmpeg-location', ffmpeg as string,
+      '--output', localPath,
+      '--no-warnings',
+      '--no-check-certificates',
+      '--prefer-free-formats',
+      '--add-header', 'referer:youtube.com',
+      '--add-header', 'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    ]);
 
     // Save track details in the DB with local_path and isOffline
     const stmt = db.prepare(`
@@ -67,7 +71,7 @@ export async function POST(req: Request) {
     );
 
     // Fetch and save lyrics for offline use
-    let lyricsData = { syncedLyrics: null, plainLyrics: null, source: null };
+    let lyricsData: { syncedLyrics: string | null, plainLyrics: string | null, source: string | null } = { syncedLyrics: null, plainLyrics: null, source: null };
     if (track.title && track.artist) {
       try {
         // Strip out anything from "(feat." or "feat." onwards, handling truncated YTMusic titles

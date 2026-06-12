@@ -13,16 +13,14 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Aura Music Scraper",
+  title: "Open Music",
   description: "An open-source music scraper application",
 };
 
 export default function RootLayout({
   children,
-  modal,
 }: Readonly<{
   children: React.ReactNode;
-  modal: React.ReactNode;
 }>) {
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased dark`}>

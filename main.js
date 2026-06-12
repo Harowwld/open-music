@@ -4,6 +4,7 @@ const { spawn } = require('child_process');
 
 let mainWindow;
 let nextProcess;
+let isNextReady = false;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -36,33 +37,45 @@ app.whenReady().then(() => {
 
   if (app.isPackaged) {
     // Start standalone Next.js server in production
-    const serverPath = path.join(__dirname, '.next', 'standalone', 'server.js');
+    const serverPath = path.join(process.resourcesPath, 'app.asar.unpacked', '.next', 'standalone', 'server.js');
+    
     nextProcess = spawn(process.execPath, [serverPath], {
       env: {
         ...process.env,
-        PORT: 3000,
+        PORT: '3000',
         NODE_ENV: 'production',
-        HOSTNAME: 'localhost'
-      }
+        HOSTNAME: 'localhost',
+        ELECTRON_RUN_AS_NODE: '1',
+        ELECTRON_NO_ATTACH_CONSOLE: '1'
+      },
+      detached: false,
+      stdio: ['ignore', 'pipe', 'pipe']
     });
 
     nextProcess.stdout.on('data', (data) => {
-      console.log(`Next.js: ${data}`);
-      // Load window once Next.js is ready
-      if (data.toString().includes('Listening on port 3000') && !mainWindow) {
+      const output = data.toString();
+      console.log('Next.js:', output);
+      if ((output.includes('Ready in') || output.includes('localhost:3000') || output.includes('ready')) && !mainWindow) {
+        isNextReady = true;
         createWindow();
       }
     });
 
     nextProcess.stderr.on('data', (data) => {
-      console.error(`Next.js Error: ${data}`);
+      console.error('Next.js error:', data.toString());
     });
   } else {
     createWindow();
   }
 
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      if (app.isPackaged && !isNextReady) {
+        // Wait for Next.js to be ready
+      } else {
+        createWindow();
+      }
+    }
   });
 });
 
