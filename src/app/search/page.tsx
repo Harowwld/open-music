@@ -125,8 +125,8 @@ export default function SearchPage() {
       }
     } catch (err) {
       // Revert if failed
-      setLikedOverrides(prev => ({ ...prev, [track.id]: currentlyLiked }));
-      setResults(results.map(t => t.id === track.id ? { ...t, isLiked: currentlyLiked } : t));
+      setLikedOverrides(prev => ({ ...prev, [track.id]: !!currentlyLiked }));
+      setResults(results.map(t => t.id === track.id ? { ...t, isLiked: !!currentlyLiked } : t));
       alert('Failed to update library status');
     }
   };
@@ -235,9 +235,9 @@ export default function SearchPage() {
                         </span>
                         <span className="text-sm text-[var(--text-muted)] flex items-center gap-1.5">
                           {downloadingTrackIds.has(track.id) ? (
-                            <Loader2 className="w-3.5 h-3.5 text-[var(--brand-gold)] animate-spin" title="Downloading..." />
+                            <Loader2 className="w-3.5 h-3.5 text-[var(--brand-gold)] animate-spin" />
                           ) : downloadedTrackIds.has(track.id) ? (
-                            <Check className="w-3.5 h-3.5 text-[var(--brand-gold)]" title="Downloaded" />
+                            <Check className="w-3.5 h-3.5 text-[var(--brand-gold)]" />
                           ) : null}
                           {track.artist}
                         </span>

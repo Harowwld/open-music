@@ -267,9 +267,9 @@ export default function AlbumViewPage({ params }: { params: Promise<{ id: string
                     <span className={`font-semibold ${isCurrentlyPlaying && !isSelectionMode ? "text-[var(--brand-gold)]" : "text-white"}`}>{track.title}</span>
                     <span className="text-sm text-[var(--text-muted)] flex items-center gap-1.5">
                       {downloadingTrackIds.has(track.id) ? (
-                        <Loader2 className="w-3.5 h-3.5 text-[var(--brand-gold)] animate-spin" title="Downloading..." />
+                        <Loader2 className="w-3.5 h-3.5 text-[var(--brand-gold)] animate-spin" />
                       ) : downloadedTrackIds.has(track.id) ? (
-                        <Check className="w-3.5 h-3.5 text-[var(--brand-gold)]" title="Downloaded" />
+                        <Check className="w-3.5 h-3.5 text-[var(--brand-gold)]" />
                       ) : null}
                       {track.artist}
                     </span>
