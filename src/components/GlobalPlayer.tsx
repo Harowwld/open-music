@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { usePlayer } from "@/context/PlayerContext";
 import YouTube from "react-youtube";
-import { Quote, Volume2, MoreHorizontal, ListPlus, Library, Download, Heart, Disc } from "lucide-react";
+import { Quote, Volume2, MoreHorizontal, ListPlus, Library, Download, Heart, Disc, SkipBack, SkipForward, ListMusic, X, Play } from "lucide-react";
+import TrackContextMenu from "@/components/TrackContextMenu";
 
 export default function GlobalPlayer() {
   const {
@@ -24,9 +25,18 @@ export default function GlobalPlayer() {
     setProgress,
     updateCurrentTrack,
     openAlbumModal,
+    addToQueue,
+    playNext,
+    playPrevious,
+    playTrack,
+    playFromQueue,
+    clearQueue,
+    queue,
+    history,
   } = usePlayer();
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
+  const [showQueuePanel, setShowQueuePanel] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = () => setContextMenu(null);
@@ -38,17 +48,21 @@ export default function GlobalPlayer() {
     };
   }, []);
 
-  const handleContextMenu = (e: React.MouseEvent) => {
+  const handleContextMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    const menuWidth = 200;
-    const menuHeight = 130;
-    let x = e.pageX;
-    // Push the menu up so it doesn't overflow the screen (since player is at the bottom)
-    let y = e.pageY - menuHeight;
+    e.nativeEvent.stopImmediatePropagation();
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuWidth = 192; // w-48 is 192px
+    const menuHeight = 200; // Approx height of the menu
 
-    if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 10;
-    if (y < 0) y = 10; // Fallback if it goes above screen
+    // Anchor strictly to the top right of the button
+    let x = rect.right - menuWidth;
+    let y = rect.top - menuHeight - 8;
+
+    if (x < 10) x = 10;
+    if (y < 10) y = 10;
 
     setContextMenu({ x, y });
   };
@@ -71,6 +85,9 @@ export default function GlobalPlayer() {
   const onReady = (event: any) => {
     setYtPlayer(event.target);
     event.target.setVolume(volume);
+    if (progress > 0) {
+      event.target.seekTo(progress, true);
+    }
   };
 
   const onStateChange = (event: any) => {
@@ -80,8 +97,10 @@ export default function GlobalPlayer() {
     if (event.data === 1) {
       setIsPlaying(true);
       setDuration(event.target.getDuration());
-    } else if (event.data === 2 || event.data === 0) {
+    } else if (event.data === 2) {
       setIsPlaying(false);
+    } else if (event.data === 0) {
+      playNext();
     }
   };
 
@@ -120,7 +139,7 @@ export default function GlobalPlayer() {
               height: "0",
               width: "0",
               playerVars: {
-                autoplay: 1,
+                autoplay: isPlaying ? 1 : 0,
                 controls: 0,
                 disablekb: 1,
               },
@@ -136,19 +155,25 @@ export default function GlobalPlayer() {
         <audio
           ref={nativePlayerRef}
           src={`/api/audio/${currentTrack.id}`}
-          autoPlay
-          onTimeUpdate={() => {
-            if (nativePlayerRef.current) {
-              setProgress(nativePlayerRef.current.currentTime);
-            }
-          }}
+          autoPlay={isPlaying}
           onLoadedMetadata={() => {
             if (nativePlayerRef.current) {
               setDuration(nativePlayerRef.current.duration);
               nativePlayerRef.current.volume = volume / 100;
+              if (progress > 0 && !isPlaying) {
+                nativePlayerRef.current.currentTime = progress;
+              }
             }
           }}
-          onEnded={() => setIsPlaying(false)}
+          onCanPlay={() => {
+            if (isPlaying && nativePlayerRef.current) {
+              const playPromise = nativePlayerRef.current.play();
+              if (playPromise !== undefined) {
+                playPromise.catch(e => console.log("Playback error:", e));
+              }
+            }
+          }}
+          onEnded={() => playNext()}
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
           className="hidden"
@@ -197,6 +222,15 @@ export default function GlobalPlayer() {
       {/* Controls */}
       <div className="flex flex-col items-center max-w-[40%] w-full gap-2">
         <div className="flex items-center gap-6">
+          <button 
+            onClick={playPrevious}
+            disabled={!currentTrack}
+            className="text-[var(--text-muted)] hover:text-white transition-colors disabled:opacity-50"
+            title="Previous"
+          >
+            <SkipBack className="w-5 h-5 fill-current" />
+          </button>
+          
           <button
             onClick={togglePlayPause}
             disabled={!currentTrack}
@@ -208,6 +242,15 @@ export default function GlobalPlayer() {
               <span className="font-bold text-lg pl-1">▶</span>
             )}
           </button>
+          
+          <button 
+            onClick={playNext}
+            disabled={!currentTrack}
+            className="text-[var(--text-muted)] hover:text-white transition-colors disabled:opacity-50"
+            title="Next"
+          >
+            <SkipForward className="w-5 h-5 fill-current" />
+          </button>
         </div>
         
         <div className="flex items-center w-full gap-2 text-xs text-[var(--text-muted)]">
@@ -216,7 +259,7 @@ export default function GlobalPlayer() {
             type="range"
             min={0}
             max={duration || 100}
-            value={progress}
+            value={progress ?? 0}
             onChange={handleSeek}
             disabled={!currentTrack}
             className="flex-1 custom-slider"
@@ -230,10 +273,17 @@ export default function GlobalPlayer() {
       <div className="flex items-center justify-end w-[30%] gap-4">
         <button
           onClick={handleContextMenu}
-          className="text-[var(--text-muted)] hover:text-white transition-colors"
+          className="text-[var(--text-muted)] hover:text-white transition-colors no-drag"
           title="More options"
         >
           <MoreHorizontal className="w-5 h-5" />
+        </button>
+        <button
+          onClick={() => setShowQueuePanel(!showQueuePanel)}
+          className={`hover:text-white transition-colors ${showQueuePanel ? "text-[var(--brand-gold)]" : "text-[var(--text-muted)]"}`}
+          title="Queue"
+        >
+          <ListMusic className="w-5 h-5" />
         </button>
         <button
           onClick={toggleLyrics}
@@ -247,7 +297,7 @@ export default function GlobalPlayer() {
           type="range"
           min={0}
           max={100}
-          value={volume}
+          value={volume ?? 100}
           onChange={handleVolume}
           className="w-24 custom-slider"
           style={{ "--slider-percent": `${volume}%` } as React.CSSProperties}
@@ -256,65 +306,102 @@ export default function GlobalPlayer() {
 
       {/* Context Menu */}
       {contextMenu && currentTrack && (
-        <div 
-          className="fixed z-[100] bg-[var(--card-bg)] border border-[var(--border-color)] shadow-xl rounded-lg py-2 w-48 text-sm glass no-drag"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
-          onClick={(e) => e.stopPropagation()}
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <div className="px-4 py-2 text-[var(--text-muted)] border-b border-[var(--border-color)] mb-1 truncate font-semibold text-xs">
-            {currentTrack.title}
+        <TrackContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          track={currentTrack}
+          onClose={() => setContextMenu(null)}
+          onPlay={playTrack}
+          onAddToQueue={addToQueue}
+          onToggleLike={toggleLike}
+          onAddToAlbum={openAlbumModal}
+          onDownload={async (track) => {
+            try {
+              const res = await fetch('/api/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(track)
+              });
+              if (res.ok) alert(`Downloaded ${track.title} for offline playback!`);
+              else throw new Error('Failed');
+            } catch (e) {
+              alert('Failed to download track');
+            }
+          }}
+        />
+      )}
+
+      {/* Queue Panel Overlay */}
+      {showQueuePanel && (
+        <div className="fixed bottom-24 right-0 w-80 max-h-[60vh] bg-[var(--card-bg)] border-t border-l border-[var(--border-color)] shadow-2xl rounded-tl-xl flex flex-col z-[90] overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)] bg-[var(--player-bg)]">
+            <h3 className="font-semibold text-white">Queue</h3>
+            <button onClick={() => setShowQueuePanel(false)} className="text-[var(--text-muted)] hover:text-white transition-colors">
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button 
-            className="w-full text-left px-4 py-2 hover:bg-[var(--card-hover)] hover:text-white transition-colors flex items-center gap-3"
-            onClick={() => {
-              alert(`Added ${currentTrack.title} to Queue (Stub)`);
-              setContextMenu(null);
-            }}
-          >
-            <ListPlus className="w-4 h-4" /> Add to Queue
-          </button>
-          <button 
-            className="w-full text-left px-4 py-2 hover:bg-[var(--card-hover)] hover:text-white transition-colors flex items-center gap-3"
-            onClick={async () => {
-              setContextMenu(null);
-              toggleLike();
-            }}
-          >
-            <Heart className={`w-4 h-4 ${currentTrack.isLiked ? 'fill-current text-[var(--brand-gold)]' : ''}`} /> 
-            {currentTrack.isLiked ? "Remove from Liked Songs" : "Save to Liked Songs"}
-          </button>
-          <button 
-            className="w-full text-left px-4 py-2 hover:bg-[var(--card-hover)] hover:text-white transition-colors flex items-center gap-3"
-            onClick={() => {
-              setContextMenu(null);
-              openAlbumModal(currentTrack);
-            }}
-          >
-            <Disc className="w-4 h-4" /> Add to Album
-          </button>
-          <button 
-            className="w-full text-left px-4 py-2 hover:bg-[var(--card-hover)] hover:text-white transition-colors flex items-center gap-3"
-            onClick={async () => {
-              setContextMenu(null);
-              try {
-                const res = await fetch('/api/download', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(currentTrack)
-                });
-                if (res.ok) {
-                  alert(`Downloaded ${currentTrack.title} for offline playback!`);
-                } else {
-                  throw new Error('Failed');
-                }
-              } catch (e) {
-                alert('Failed to download track');
-              }
-            }}
-          >
-            <Download className="w-4 h-4" /> Download
-          </button>
+          
+          <div className="overflow-y-auto flex-1 p-2 custom-scrollbar">
+            {currentTrack && (
+              <div className="mb-4">
+                <div className="text-xs font-bold text-[var(--brand-gold)] px-2 mb-2 uppercase tracking-wider">Now Playing</div>
+                <div className="flex items-center gap-3 p-2 rounded-md bg-[var(--card-hover)]">
+                  <div className="w-10 h-10 rounded bg-[var(--border-color)] overflow-hidden shrink-0 relative flex items-center justify-center">
+                    {currentTrack.thumbnail ? (
+                      <img src={currentTrack.thumbnail} alt="" className="object-cover w-full h-full" />
+                    ) : (
+                      <Disc className="w-5 h-5 text-[var(--text-muted)]" />
+                    )}
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 rounded-full bg-[var(--brand-gold)] animate-pulse" />
+                    </div>
+                  </div>
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className="text-sm font-medium text-[var(--brand-gold)] truncate">{currentTrack.title}</span>
+                    <span className="text-xs text-[var(--text-muted)] truncate">{currentTrack.artist}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {queue.length > 0 ? (
+              <div>
+                <div className="flex items-center justify-between px-2 mb-2">
+                  <div className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Next In Queue</div>
+                  <button onClick={clearQueue} className="text-xs text-[var(--text-muted)] hover:text-white transition-colors uppercase tracking-wider font-bold">Clear</button>
+                </div>
+                <div className="flex flex-col gap-1">
+                  {queue.map((track, i) => (
+                    <div 
+                      key={`${track.id}-${i}`} 
+                      className="flex items-center gap-3 p-2 rounded-md hover:bg-[var(--card-hover)] group transition-colors cursor-pointer"
+                      onClick={() => playFromQueue(i)}
+                    >
+                      <div className="w-10 h-10 rounded bg-[var(--border-color)] overflow-hidden shrink-0 relative flex items-center justify-center">
+                        {track.thumbnail ? (
+                          <img src={track.thumbnail} alt="" className="object-cover w-full h-full" />
+                        ) : (
+                          <Disc className="w-5 h-5 text-[var(--text-muted)]" />
+                        )}
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer">
+                          <Play className="w-4 h-4 text-white fill-white" />
+                        </div>
+                      </div>
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <span className="text-sm font-medium text-white truncate">{track.title}</span>
+                        <span className="text-xs text-[var(--text-muted)] truncate">{track.artist}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-32 text-[var(--text-muted)]">
+                <ListMusic className="w-8 h-8 mb-2 opacity-50" />
+                <span className="text-sm">Your queue is empty</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

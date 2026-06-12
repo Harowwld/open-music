@@ -1,11 +1,18 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Search, Library, Download } from "lucide-react";
+import { usePlayer } from "@/context/PlayerContext";
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { downloadProgress, closeLyrics } = usePlayer();
+
+  useEffect(() => {
+    closeLyrics();
+  }, [pathname, closeLyrics]);
 
   const links = [
     { href: "/", label: "Home", icon: Home },
@@ -42,6 +49,24 @@ export default function Sidebar() {
         })}
       </div>
 
+      <div className="flex-1" />
+
+      {downloadProgress && (
+        <div className="no-drag bg-[var(--card-bg)] p-4 rounded-xl border border-[var(--border-color)] shadow-lg mt-auto mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-xs font-bold text-white">Downloading...</span>
+            <span className="text-xs font-mono text-[var(--brand-gold)]">{downloadProgress.current}/{downloadProgress.total}</span>
+          </div>
+          <div className="w-full bg-black/40 rounded-full h-2 overflow-hidden border border-white/5">
+            <div 
+              className="bg-gradient-to-r from-[var(--brand-gold)] to-[#ffe0b2] h-2 rounded-full transition-all duration-300 relative"
+              style={{ width: `${Math.max(5, (downloadProgress.current / downloadProgress.total) * 100)}%` }}
+            >
+              <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+            </div>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }
