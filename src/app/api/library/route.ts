@@ -50,6 +50,10 @@ export async function DELETE(request: Request) {
     }
 
     db.prepare('UPDATE tracks SET isLiked = 0 WHERE id = ?').run(id);
+    
+    // Clean up orphaned tracks
+    db.prepare('DELETE FROM tracks WHERE isOffline = 0 AND isLiked = 0 AND id NOT IN (SELECT track_id FROM album_tracks)').run();
+    
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

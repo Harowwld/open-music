@@ -24,7 +24,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
       const dir = path.dirname(filePath);
       if (fs.existsSync(dir)) {
         const files = fs.readdirSync(dir);
-        const actualFile = files.find(f => f.startsWith(id + '.'));
+        const actualFile = files.find(f => f.startsWith(id + '.') && !f.endsWith('.json'));
         if (actualFile) {
           filePath = path.join(dir, actualFile);
         } else {

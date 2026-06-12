@@ -31,6 +31,10 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     } else {
       db.prepare('DELETE FROM albums WHERE id = ?').run(albumId);
     }
+    
+    // Clean up orphaned tracks
+    db.prepare('DELETE FROM tracks WHERE isOffline = 0 AND isLiked = 0 AND id NOT IN (SELECT track_id FROM album_tracks)').run();
+    
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });

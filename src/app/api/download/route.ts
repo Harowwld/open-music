@@ -43,8 +43,16 @@ export async function POST(req: Request) {
 
     // Save track details in the DB with local_path and isOffline
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO tracks (id, title, artist, album, thumbnail, duration, local_path, isOffline)
+      INSERT INTO tracks (id, title, artist, album, thumbnail, duration, local_path, isOffline)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        title=excluded.title,
+        artist=excluded.artist,
+        album=excluded.album,
+        thumbnail=excluded.thumbnail,
+        duration=excluded.duration,
+        local_path=excluded.local_path,
+        isOffline=excluded.isOffline
     `);
 
     stmt.run(
@@ -57,6 +65,56 @@ export async function POST(req: Request) {
       localPath,
       1
     );
+
+    // Fetch and save lyrics for offline use
+    let lyricsData = { syncedLyrics: null, plainLyrics: null, source: null };
+    if (track.title && track.artist) {
+      try {
+        // Strip out anything from "(feat." or "feat." onwards, handling truncated YTMusic titles
+        const cleanTitle = track.title.replace(/\s*\(?feat\..*/i, '').replace(/\s*\[.*?\]/g, '');
+        // Extract just the primary artist before any commas or ampersands
+        const cleanArtist = track.artist.split(/[,&]|\band\b/i)[0].trim();
+        const query = `${cleanTitle} ${cleanArtist}`;
+        const lrclibUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
+        let foundLyrics = false;
+        console.log(`Starting strict LRCLIB fetch loop for: ${query}`);
+        
+        while (!foundLyrics) {
+          try {
+            const lrclibRes = await fetch(lrclibUrl, {
+              headers: { 'User-Agent': 'AuraMusic/1.0.0 (https://github.com/aura-music)' }
+            });
+            if (lrclibRes.ok) {
+              const data = await lrclibRes.json();
+              if (data && data.length > 0) {
+                const syncedMatch = data.find((d: any) => d.syncedLyrics);
+                const bestMatch = syncedMatch || data[0];
+                if (bestMatch.syncedLyrics || bestMatch.plainLyrics) {
+                  lyricsData.syncedLyrics = bestMatch.syncedLyrics || null;
+                  lyricsData.plainLyrics = bestMatch.plainLyrics || null;
+                  lyricsData.source = 'lrclib';
+                  foundLyrics = true;
+                  console.log(`Successfully found lyrics for: ${query}`);
+                  break;
+                }
+              }
+            }
+          } catch (e) {
+            console.error('LRCLIB loop fetch error, will retry...', e);
+          }
+          
+          if (!foundLyrics) {
+            console.log(`No lyrics found yet for ${query}, retrying in 2s...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        }
+      } catch (e) {
+        console.error('LRCLIB download fetch error:', e);
+      }
+    }
+
+
+    fs.writeFileSync(path.join(offlineDir, `${track.id}.json`), JSON.stringify(lyricsData));
 
     return NextResponse.json({ success: true, message: 'Track downloaded successfully', local_path: localPath });
   } catch (error: any) {
@@ -79,14 +137,17 @@ export async function DELETE(req: Request) {
       const dir = path.dirname(track.local_path);
       if (fs.existsSync(dir)) {
         const files = fs.readdirSync(dir);
-        const actualFile = files.find(f => f.startsWith(id + '.'));
-        if (actualFile) {
-          fs.unlinkSync(path.join(dir, actualFile));
+        const actualFiles = files.filter(f => f.startsWith(id + '.'));
+        for (const f of actualFiles) {
+          fs.unlinkSync(path.join(dir, f));
         }
       }
     }
 
     db.prepare('UPDATE tracks SET isOffline = 0, local_path = NULL WHERE id = ?').run(id);
+
+    // Clean up orphaned tracks
+    db.prepare('DELETE FROM tracks WHERE isOffline = 0 AND isLiked = 0 AND id NOT IN (SELECT track_id FROM album_tracks)').run();
 
     return NextResponse.json({ success: true, message: 'Track deleted' });
   } catch (error: any) {
