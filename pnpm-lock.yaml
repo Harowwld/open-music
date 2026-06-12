@@ -81,6 +81,9 @@ importers:
       tailwindcss:
         specifier: ^4
         version: 4.3.0
+      tar:
+        specifier: ^7.5.16
+        version: 7.5.16
       tsx:
         specifier: ^4.22.4
         version: 4.22.4
