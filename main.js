@@ -11,6 +11,7 @@ function createWindow() {
     height: 800,
     titleBarStyle: 'hiddenInset',
     backgroundColor: '#121212',
+    icon: path.join(__dirname, 'build', 'icon.png'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true
@@ -29,6 +30,10 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === 'darwin' && !app.isPackaged) {
+    app.dock.setIcon(path.join(__dirname, 'build', 'icon.png'));
+  }
+
   if (app.isPackaged) {
     // Start standalone Next.js server in production
     const serverPath = path.join(__dirname, '.next', 'standalone', 'server.js');

@@ -1,0 +1,40 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2c2c2c"/>
+      <stop offset="100%" stop-color="#0a0a0a"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e3d0bc"/>
+      <stop offset="50%" stop-color="#a68b6a"/>
+      <stop offset="100%" stop-color="#7a6245"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="30" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="15" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <g transform="translate(48, 48) scale(0.8125)">
+    <rect width="512" height="512" rx="116" fill="url(#bg)" filter="url(#shadow)"/>
+    
+    <!-- Outer Aura Ring -->
+    <circle cx="256" cy="256" r="150" fill="none" stroke="#a68b6a" stroke-width="4" opacity="0.3" filter="url(#glow)"/>
+    <circle cx="256" cy="256" r="150" fill="none" stroke="url(#gold)" stroke-width="2" opacity="0.7"/>
+    
+    <!-- Inner Waveform -->
+    <g fill="url(#gold)" transform="translate(256, 256)" filter="url(#glow)">
+      <rect x="-92" y="-32" width="24" height="64" rx="12" />
+      <rect x="-52" y="-64" width="24" height="128" rx="12" />
+      <rect x="-12" y="-100" width="24" height="200" rx="12" />
+      <rect x="28" y="-64" width="24" height="128" rx="12" />
+      <rect x="68" y="-32" width="24" height="64" rx="12" />
+    </g>
+  </g>
+</svg>
