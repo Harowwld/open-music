@@ -96,10 +96,11 @@ if (PLATFORM === 'darwin') {
     const pythonRes = await download(PYTHON_URL);
     mkdirSync(pythonTargetDir, { recursive: true });
     
-    await pipeline(
-      pythonRes.body,
-      extract({ cwd: pythonTargetDir, strip: 1 }) // removes the top-level "python" folder inside tarball
-    );
+    const pyTarballPath = path.join(ROOT, '.next', 'standalone', 'python.tar.gz');
+    const destStream = createWriteStream(pyTarballPath);
+    await pipeline(pythonRes.body, destStream);
+    execFileSync('tar', ['-xzf', pyTarballPath, '-C', pythonTargetDir, '--strip-components=1']);
+    rmSync(pyTarballPath, { force: true });
     log(`✓ Bundled portable python runtime.`);
   }
 
