@@ -1,0 +1,49 @@
+name: Build Windows App
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build Next.js
+        run: pnpm run build
+
+      - name: Copy standalone files
+        shell: bash
+        run: |
+          mkdir -p .next/standalone/public .next/standalone/.next/static
+          cp -R public/* .next/standalone/public/
+          cp -R .next/static/* .next/standalone/.next/static/
+
+      - name: Fix Native Modules
+        shell: bash
+        run: node scripts/fix-native-modules.mjs
+
+      - name: Package with Electron Builder
+        shell: bash
+        run: pnpm exec electron-builder -w
+
+      - name: Upload Windows App
+        uses: actions/upload-artifact@v4
+        with:
+          name: Open-Music-Windows
+          path: dist/*.exe
