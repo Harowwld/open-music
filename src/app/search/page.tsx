@@ -11,6 +11,7 @@ export default function SearchPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const { playTrack, currentTrack, isPlaying, openAlbumModal, addToQueue, downloadingTrackIds, downloadedTrackIds, downloadTrack, history, removeDownload } = usePlayer();
+  const [likedOverrides, setLikedOverrides] = useState<Record<string, boolean>>({});
 
   const recentTracks = useMemo(() => {
     const deduped = new Map();
@@ -106,9 +107,10 @@ export default function SearchPage() {
 
   const toggleLike = async (track: Track, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    const currentlyLiked = track.isLiked;
+    const currentlyLiked = likedOverrides[track.id] !== undefined ? likedOverrides[track.id] : track.isLiked;
     
     // Optimistic UI update
+    setLikedOverrides(prev => ({ ...prev, [track.id]: !currentlyLiked }));
     setResults(results.map(t => t.id === track.id ? { ...t, isLiked: !currentlyLiked } : t));
     
     try {
@@ -123,15 +125,19 @@ export default function SearchPage() {
       }
     } catch (err) {
       // Revert if failed
+      setLikedOverrides(prev => ({ ...prev, [track.id]: currentlyLiked }));
       setResults(results.map(t => t.id === track.id ? { ...t, isLiked: currentlyLiked } : t));
       alert('Failed to update library status');
     }
   };
 
-  const formatDuration = (seconds?: number) => {
-    if (!seconds) return "";
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
+  const formatDuration = (val?: number | string) => {
+    if (!val) return "";
+    if (typeof val === 'string' && val.includes(':') && !val.includes('NaN')) return val;
+    const num = Number(val);
+    if (isNaN(num)) return "";
+    const m = Math.floor(num / 60);
+    const s = Math.floor(num % 60);
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
@@ -193,7 +199,8 @@ export default function SearchPage() {
               {query.trim() ? "Search Results" : "Recently Played"}
             </h2>
             <div className="flex flex-col gap-2">
-              {(query.trim() ? results : recentTracks).map((track) => {
+              {(query.trim() ? results : recentTracks).map((rawTrack) => {
+                const track = { ...rawTrack, isLiked: likedOverrides[rawTrack.id] !== undefined ? likedOverrides[rawTrack.id] : rawTrack.isLiked };
                 const isCurrentlyPlaying = currentTrack?.id === track.id;
                 
                 return (

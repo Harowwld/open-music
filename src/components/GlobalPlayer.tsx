@@ -67,10 +67,13 @@ export default function GlobalPlayer() {
     setContextMenu({ x, y });
   };
 
-  const formatTime = (time: number) => {
-    if (isNaN(time) || time === 0) return "0:00";
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
+  const formatTime = (time: number | string | undefined) => {
+    if (!time) return "0:00";
+    if (typeof time === 'string' && time.includes(':') && !time.includes('NaN')) return time;
+    const numTime = Number(time);
+    if (isNaN(numTime) || numTime <= 0) return "0:00";
+    const minutes = Math.floor(numTime / 60);
+    const seconds = Math.floor(numTime % 60);
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 

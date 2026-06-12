@@ -63,10 +63,13 @@ export default function LibraryPage() {
     }
   };
 
-  const formatDuration = (seconds?: number) => {
-    if (!seconds) return "";
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
+  const formatDuration = (val?: number | string) => {
+    if (!val) return "";
+    if (typeof val === 'string' && val.includes(':') && !val.includes('NaN')) return val;
+    const num = Number(val);
+    if (isNaN(num)) return "";
+    const m = Math.floor(num / 60);
+    const s = Math.floor(num % 60);
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 

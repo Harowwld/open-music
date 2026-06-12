@@ -274,7 +274,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setIsPlaying(true);
     setProgress(0);
     if (track.duration) {
-      setDuration(track.duration);
+      let d: any = track.duration;
+      if (typeof d === 'string' && d.includes(':')) {
+        const parts = d.split(':').map(Number);
+        if (parts.length === 2) d = parts[0] * 60 + parts[1];
+        else if (parts.length === 3) d = parts[0] * 3600 + parts[1] * 60 + parts[2];
+      }
+      setDuration(Number(d) || 0);
     }
   };
 
@@ -297,7 +303,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setCurrentTrack(nextTrack);
       setIsPlaying(true);
       setProgress(0);
-      if (nextTrack.duration) setDuration(nextTrack.duration);
+      if (nextTrack.duration) {
+        let d: any = nextTrack.duration;
+        if (typeof d === 'string' && d.includes(':')) {
+          const parts = d.split(':').map(Number);
+          if (parts.length === 2) d = parts[0] * 60 + parts[1];
+          else if (parts.length === 3) d = parts[0] * 3600 + parts[1] * 60 + parts[2];
+        }
+        setDuration(Number(d) || 0);
+      }
     } else {
       setIsPlaying(false);
       setProgress(0);
@@ -314,7 +328,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setCurrentTrack(track);
     setIsPlaying(true);
     setProgress(0);
-    if (track.duration) setDuration(track.duration);
+    if (track.duration) {
+      let d: any = track.duration;
+      if (typeof d === 'string' && d.includes(':')) {
+        const parts = d.split(':').map(Number);
+        if (parts.length === 2) d = parts[0] * 60 + parts[1];
+        else if (parts.length === 3) d = parts[0] * 3600 + parts[1] * 60 + parts[2];
+      }
+      setDuration(Number(d) || 0);
+    }
   };
 
   const clearQueue = () => {
@@ -333,7 +355,15 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       setCurrentTrack(prevTrack);
       setIsPlaying(true);
       setProgress(0);
-      if (prevTrack.duration) setDuration(prevTrack.duration);
+      if (prevTrack.duration) {
+        let d: any = prevTrack.duration;
+        if (typeof d === 'string' && d.includes(':')) {
+          const parts = d.split(':').map(Number);
+          if (parts.length === 2) d = parts[0] * 60 + parts[1];
+          else if (parts.length === 3) d = parts[0] * 3600 + parts[1] * 60 + parts[2];
+        }
+        setDuration(Number(d) || 0);
+      }
     } else {
       seekTo(0);
     }
