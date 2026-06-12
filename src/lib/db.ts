@@ -5,8 +5,8 @@ import fs from 'fs';
 
 // Determine database path. Use Application Support on Mac to ensure it persists across builds.
 const appDataPath = process.platform === 'darwin' 
-  ? path.join(os.homedir(), 'Library', 'Application Support', 'Aura Music')
-  : path.join(os.homedir(), '.aura_music');
+  ? path.join(os.homedir(), 'Library', 'Application Support', 'Open Music')
+  : path.join(os.homedir(), '.open_music');
 
 if (!fs.existsSync(appDataPath)) {
   fs.mkdirSync(appDataPath, { recursive: true });

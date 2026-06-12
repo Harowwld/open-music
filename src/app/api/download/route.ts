@@ -15,8 +15,8 @@ export async function POST(req: Request) {
     }
 
     const appDataPath = process.platform === 'darwin' 
-      ? path.join(os.homedir(), 'Library', 'Application Support', 'Aura Music')
-      : path.join(os.homedir(), '.aura_music');
+      ? path.join(os.homedir(), 'Library', 'Application Support', 'Open Music')
+      : path.join(os.homedir(), '.open_music');
     
     const offlineDir = path.join(appDataPath, 'offline_audio');
     

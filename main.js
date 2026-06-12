@@ -1,10 +1,26 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, utilityProcess } = require('electron');
 const path = require('path');
-const { spawn } = require('child_process');
+const os = require('os');
+const fs = require('fs');
 
 let mainWindow;
 let nextProcess;
 let isNextReady = false;
+
+// One-time migration: copy data from old 'Aura Music' folder to 'Open Music'
+function migrateAppData() {
+  if (process.platform !== 'darwin') return;
+  const oldPath = path.join(os.homedir(), 'Library', 'Application Support', 'Aura Music');
+  const newPath = path.join(os.homedir(), 'Library', 'Application Support', 'Open Music');
+  if (fs.existsSync(oldPath) && !fs.existsSync(newPath)) {
+    try {
+      fs.cpSync(oldPath, newPath, { recursive: true });
+      console.log('Migrated app data from Aura Music → Open Music');
+    } catch (e) {
+      console.error('Migration failed:', e);
+    }
+  }
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -19,11 +35,7 @@ function createWindow() {
     }
   });
 
-  const url = app.isPackaged 
-    ? 'http://localhost:3000' 
-    : 'http://localhost:3000';
-    
-  mainWindow.loadURL(url);
+  mainWindow.loadURL('http://localhost:3000');
 
   mainWindow.on('closed', function () {
     mainWindow = null;
@@ -31,25 +43,26 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  migrateAppData();
+
   if (process.platform === 'darwin' && !app.isPackaged) {
     app.dock.setIcon(path.join(__dirname, 'build', 'icon.png'));
   }
 
   if (app.isPackaged) {
-    // Start standalone Next.js server in production
+    // Use utilityProcess.fork() — Electron's built-in headless Node runner.
+    // Unlike spawn(process.execPath), it never creates a Dock entry because
+    // the OS tracks it as a private utility subprocess, not a new app launch.
     const serverPath = path.join(process.resourcesPath, 'app.asar.unpacked', '.next', 'standalone', 'server.js');
-    
-    nextProcess = spawn(process.execPath, [serverPath], {
+
+    nextProcess = utilityProcess.fork(serverPath, [], {
       env: {
         ...process.env,
         PORT: '3000',
         NODE_ENV: 'production',
         HOSTNAME: 'localhost',
-        ELECTRON_RUN_AS_NODE: '1',
-        ELECTRON_NO_ATTACH_CONSOLE: '1'
       },
-      detached: false,
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: 'pipe',
     });
 
     nextProcess.stdout.on('data', (data) => {
