@@ -19,8 +19,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
+  modal,
 }: Readonly<{
   children: React.ReactNode;
+  modal: React.ReactNode;
 }>) {
   return (
     <html lang="en" className={`${inter.variable} h-full antialiased dark`}>
@@ -28,10 +30,12 @@ export default function RootLayout({
         <PlayerProvider>
           <div className="flex flex-1 overflow-hidden">
             <Sidebar />
-            <main className="flex-1 overflow-y-auto bg-gradient-to-b from-[var(--card-hover)] to-[var(--background)] rounded-lg m-2 ml-0 relative">
-              {children}
+            <div className="flex-1 m-2 ml-0 relative rounded-lg overflow-hidden bg-[var(--background)]">
+              <main className="absolute inset-0 overflow-y-auto bg-gradient-to-b from-[var(--card-hover)] to-[var(--background)]">
+                {children}
+              </main>
               <LyricsOverlay />
-            </main>
+            </div>
           </div>
           <GlobalPlayer />
           <AlbumModal />
