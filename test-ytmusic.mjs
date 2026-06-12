@@ -1,4 +1,4 @@
-const YTMusic = require('ytmusic-api').default;
+import YTMusic from 'ytmusic-api';
 async function test() {
   const ytmusic = new YTMusic();
   await ytmusic.initialize();
