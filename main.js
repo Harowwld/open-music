@@ -53,7 +53,10 @@ app.whenReady().then(() => {
     // Use utilityProcess.fork() — Electron's built-in headless Node runner.
     // Unlike spawn(process.execPath), it never creates a Dock entry because
     // the OS tracks it as a private utility subprocess, not a new app launch.
-    const serverPath = path.join(process.resourcesPath, 'app.asar.unpacked', '.next', 'standalone', 'server.js');
+    let serverPath = path.join(process.resourcesPath, 'app.asar.unpacked', '.next', 'standalone', 'server.js');
+    if (!fs.existsSync(serverPath)) {
+      serverPath = path.join(process.resourcesPath, 'app', '.next', 'standalone', 'server.js');
+    }
 
     nextProcess = utilityProcess.fork(serverPath, [], {
       env: {

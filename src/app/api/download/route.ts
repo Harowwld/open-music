@@ -31,8 +31,7 @@ export async function POST(req: Request) {
     const { promisify } = require('util');
     const execFileAsync = promisify(execFile);
     
-    // @ts-ignore
-    await execFileAsync(youtubedl.constants.YOUTUBE_DL_PATH, [
+    const args = [
       `https://www.youtube.com/watch?v=${track.id}`,
       '--extract-audio',
       '--audio-format', 'opus',
@@ -41,9 +40,26 @@ export async function POST(req: Request) {
       '--no-warnings',
       '--no-check-certificates',
       '--prefer-free-formats',
+      '--extractor-args', 'youtube:player_client=android,web',
       '--add-header', 'referer:youtube.com',
       '--add-header', 'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    ]);
+    ];
+
+    // Check for bundled portable python runtime
+    let pythonPath = path.join(process.cwd(), 'python', 'bin', 'python3');
+    if (!fs.existsSync(pythonPath)) {
+      pythonPath = path.join(process.cwd(), '.next', 'standalone', 'python', 'bin', 'python3');
+    }
+
+    if (fs.existsSync(pythonPath)) {
+      console.log('Using bundled python:', pythonPath);
+      // @ts-ignore
+      await execFileAsync(pythonPath, [youtubedl.constants.YOUTUBE_DL_PATH, ...args]);
+    } else {
+      console.log('Using system python');
+      // @ts-ignore
+      await execFileAsync(youtubedl.constants.YOUTUBE_DL_PATH, args);
+    }
 
     // Save track details in the DB with local_path and isOffline
     const stmt = db.prepare(`
@@ -81,9 +97,12 @@ export async function POST(req: Request) {
         const query = `${cleanTitle} ${cleanArtist}`;
         const lrclibUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
         let foundLyrics = false;
+        let retryCount = 0;
+        const maxRetries = 3;
         console.log(`Starting strict LRCLIB fetch loop for: ${query}`);
         
-        while (!foundLyrics) {
+        while (!foundLyrics && retryCount < maxRetries) {
+          retryCount++;
           try {
             const lrclibRes = await fetch(lrclibUrl, {
               headers: { 'User-Agent': 'AuraMusic/1.0.0 (https://github.com/aura-music)' }

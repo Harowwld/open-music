@@ -80,3 +80,43 @@ execFileSync('cp', [extracted, TARGET_NODE]);
 execFileSync('rm', ['-rf', tmpDir]);
 
 log(`✓ Replaced better_sqlite3.node with Electron ABI ${ELECTRON_ABI} build.`);
+
+// ── Python Bundling & yt-dlp Fix ─────────────────────────────────────────────
+// The compiled PyInstaller yt-dlp binary is extremely slow due to unpacking overhead.
+// We instead download a portable micro-Python runtime and standard yt-dlp zipapp.
+if (PLATFORM === 'darwin') {
+  // 1. Download portable python runtime
+  const PYTHON_URL = ARCH === 'arm64'
+    ? 'https://github.com/indygreg/python-build-standalone/releases/download/20240415/cpython-3.10.14+20240415-aarch64-apple-darwin-install_only.tar.gz'
+    : 'https://github.com/indygreg/python-build-standalone/releases/download/20240415/cpython-3.10.14+20240415-x86_64-apple-darwin-install_only.tar.gz';
+  
+  const pythonTargetDir = path.join(ROOT, '.next', 'standalone', 'python');
+  if (!existsSync(pythonTargetDir)) {
+    log(`Downloading portable python runtime for ${ARCH}...`);
+    const pythonRes = await download(PYTHON_URL);
+    mkdirSync(pythonTargetDir, { recursive: true });
+    
+    await pipeline(
+      pythonRes.body,
+      extract({ cwd: pythonTargetDir, strip: 1 }) // removes the top-level "python" folder inside tarball
+    );
+    log(`✓ Bundled portable python runtime.`);
+  }
+
+  // 2. Download standard yt-dlp zipapp
+  const YTDLP_URL = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
+  const ytdlpTarget = path.join(ROOT, '.next', 'standalone', 'node_modules', 'youtube-dl-exec', 'bin', 'yt-dlp');
+  
+  if (existsSync(ytdlpTarget)) {
+    log(`Downloading standard yt-dlp zipapp...`);
+    const ytdlpRes = await download(YTDLP_URL);
+    const destStream = createWriteStream(ytdlpTarget);
+    await pipeline(ytdlpRes.body, destStream);
+    
+    // Ensure it is executable
+    import('fs').then(fs => {
+      fs.chmodSync(ytdlpTarget, 0o755);
+      log(`✓ Replaced yt-dlp with the standard python zipapp.`);
+    });
+  }
+}
