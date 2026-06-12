@@ -10,9 +10,8 @@
  * Run automatically by the `build:mac` npm script.
  */
 
-import { createWriteStream, existsSync, mkdirSync } from 'fs';
+import { createWriteStream, existsSync, mkdirSync, copyFileSync, rmSync } from 'fs';
 import { pipeline } from 'stream/promises';
-import { extract } from 'tar';
 import { execFileSync } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -59,15 +58,16 @@ log(`Electron ${ELECTRON_VERSION} → ABI ${ELECTRON_ABI} | platform=${PLATFORM}
 
 const response = await download(DOWNLOAD_URL);
 
-// The tarball contains build/Release/better_sqlite3.node — extract to a temp
-// location then move the .node file into place.
+// Save tarball to disk then extract via native OS tar
 const tmpDir = path.join(ROOT, '.next', 'standalone', '.sqlite3-tmp');
 mkdirSync(tmpDir, { recursive: true });
+const tarballPath = path.join(tmpDir, 'sqlite3.tar.gz');
 
-await pipeline(
-  response.body,
-  extract({ cwd: tmpDir, strip: 0 })
-);
+const destStream = createWriteStream(tarballPath);
+await pipeline(response.body, destStream);
+
+// Extract the tarball natively
+execFileSync('tar', ['-xzf', tarballPath, '-C', tmpDir]);
 
 const extracted = path.join(tmpDir, 'build', 'Release', 'better_sqlite3.node');
 if (!existsSync(extracted)) {
@@ -75,9 +75,9 @@ if (!existsSync(extracted)) {
   process.exit(1);
 }
 
-// Move into place (overwrite the wrong ABI binary)
-execFileSync('cp', [extracted, TARGET_NODE]);
-execFileSync('rm', ['-rf', tmpDir]);
+// Move into place (overwrite the wrong ABI binary) using cross-platform fs
+copyFileSync(extracted, TARGET_NODE);
+rmSync(tmpDir, { recursive: true, force: true });
 
 log(`✓ Replaced better_sqlite3.node with Electron ABI ${ELECTRON_ABI} build.`);
 
