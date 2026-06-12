@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import { usePlayer, Track } from "@/context/PlayerContext";
-import { Play, Trash2, Heart, Disc, Download as DownloadIcon, ListPlus, Shuffle, CheckSquare, Square, X, CheckCircle2 } from "lucide-react";
+import { Play, Trash2, Heart, Disc, Download as DownloadIcon, ListPlus, Shuffle, CheckSquare, Square, X, CheckCircle2, Check, Loader2, CloudOff } from "lucide-react";
 import TrackContextMenu from "@/components/TrackContextMenu";
 
 export default function AlbumViewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -10,7 +10,7 @@ export default function AlbumViewPage({ params }: { params: Promise<{ id: string
   const [album, setAlbum] = useState<any>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { playTrack, currentTrack, isPlaying, openAlbumModal, addToQueue, addMultipleToQueue, downloadTracks } = usePlayer();
+  const { playTrack, currentTrack, isPlaying, openAlbumModal, addToQueue, addMultipleToQueue, downloadTracks, downloadingTrackIds, downloadedTrackIds, downloadTrack, removeDownload, removeDownloads } = usePlayer();
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: Track } | null>(null);
   
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -142,6 +142,16 @@ export default function AlbumViewPage({ params }: { params: Promise<{ id: string
     toggleSelectionMode();
   };
 
+  const handleBulkRemoveDownload = async () => {
+    const selectedTracks = tracks.filter(t => selectedTrackIds.has(t.id));
+    if (selectedTracks.length === 0) return;
+    await removeDownloads(selectedTracks);
+    toggleSelectionMode();
+  };
+
+  const fullyDownloaded = tracks.length > 0 && tracks.every(t => downloadedTrackIds.has(t.id));
+  const someDownloaded = tracks.length > 0 && tracks.some(t => downloadedTrackIds.has(t.id));
+
 
   if (isLoading) return <div className="p-8 flex justify-center"><span className="animate-spin text-3xl">💿</span></div>;
   if (!album) return <div className="p-8 text-center text-red-500">Album not found</div>;
@@ -185,13 +195,26 @@ export default function AlbumViewPage({ params }: { params: Promise<{ id: string
             <ListPlus className="w-8 h-8" />
           </button>
           
-          <button
-            onClick={downloadAll}
-            className="text-[var(--text-muted)] hover:text-white transition-colors p-2"
-            title="Download Album"
-          >
-            <DownloadIcon className="w-8 h-8" />
-          </button>
+          
+          {!fullyDownloaded && (
+            <button
+              onClick={downloadAll}
+              className="text-[var(--text-muted)] hover:text-white transition-colors p-2"
+              title="Download Album"
+            >
+              <DownloadIcon className="w-8 h-8" />
+            </button>
+          )}
+
+          {someDownloaded && (
+            <button
+              onClick={() => removeDownloads(tracks)}
+              className="text-[var(--text-muted)] hover:text-red-400 transition-colors p-2"
+              title="Remove Album Downloads"
+            >
+              <CloudOff className="w-8 h-8" />
+            </button>
+          )}
           
           <button
             onClick={toggleSelectionMode}
@@ -242,7 +265,14 @@ export default function AlbumViewPage({ params }: { params: Promise<{ id: string
                   </div>
                   <div className="flex flex-col">
                     <span className={`font-semibold ${isCurrentlyPlaying && !isSelectionMode ? "text-[var(--brand-gold)]" : "text-white"}`}>{track.title}</span>
-                    <span className="text-sm text-[var(--text-muted)]">{track.artist}</span>
+                    <span className="text-sm text-[var(--text-muted)] flex items-center gap-1.5">
+                      {downloadingTrackIds.has(track.id) ? (
+                        <Loader2 className="w-3.5 h-3.5 text-[var(--brand-gold)] animate-spin" title="Downloading..." />
+                      ) : downloadedTrackIds.has(track.id) ? (
+                        <Check className="w-3.5 h-3.5 text-[var(--brand-gold)]" title="Downloaded" />
+                      ) : null}
+                      {track.artist}
+                    </span>
                   </div>
                 </div>
                 {!isSelectionMode && (
@@ -279,6 +309,9 @@ export default function AlbumViewPage({ params }: { params: Promise<{ id: string
           <button onClick={handleBulkDownload} className="text-[var(--text-muted)] hover:text-white transition-colors" title="Download">
             <DownloadIcon className="w-5 h-5" />
           </button>
+          <button onClick={handleBulkRemoveDownload} className="text-[var(--text-muted)] hover:text-red-400 transition-colors" title="Remove Downloads">
+            <CloudOff className="w-5 h-5" />
+          </button>
           <button onClick={handleBulkDelete} className="text-red-400 hover:text-red-300 transition-colors" title="Remove from Album">
             <Trash2 className="w-5 h-5" />
           </button>
@@ -296,20 +329,10 @@ export default function AlbumViewPage({ params }: { params: Promise<{ id: string
           onAddToQueue={addToQueue}
           onToggleLike={toggleLike}
           onAddToAlbum={openAlbumModal}
-          onDownload={async (track) => {
-            try {
-              const res = await fetch('/api/download', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(track)
-              });
-              if (res.ok) alert(`Downloaded ${track.title} for offline playback!`);
-              else throw new Error('Failed');
-            } catch (e) {
-              alert('Failed to download track');
-            }
-          }}
+          onDownload={downloadTrack}
           onRemoveFromAlbum={removeTrack}
+          onRemoveDownload={removeDownload}
+          isDownloaded={contextMenu ? downloadedTrackIds.has(contextMenu.track.id) : false}
         />
       )}
     </div>

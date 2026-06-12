@@ -4,6 +4,7 @@ import { Play, Music, Heart, Disc } from "lucide-react";
 import Link from "next/link";
 import { usePlayer, Track } from "@/context/PlayerContext";
 import { useEffect, useState } from "react";
+import AlbumContextMenu from "@/components/AlbumContextMenu";
 
 export default function Home() {
   const { history, currentTrack, playTrack } = usePlayer();
@@ -11,6 +12,34 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [songCount, setSongCount] = useState<number | null>(null);
   const [albums, setAlbums] = useState<any[]>([]);
+  const [albumContextMenu, setAlbumContextMenu] = useState<{ x: number, y: number, album: any } | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = () => setAlbumContextMenu(null);
+    document.addEventListener("click", handleClickOutside);
+    window.addEventListener("scroll", handleClickOutside);
+    return () => {
+      document.removeEventListener("click", handleClickOutside);
+      window.removeEventListener("scroll", handleClickOutside);
+    };
+  }, []);
+
+  const handleContextMenu = (e: React.MouseEvent, album: any) => {
+    e.preventDefault();
+    const menuWidth = 200;
+    const menuHeight = 220;
+    let x = e.pageX;
+    let y = e.pageY;
+
+    if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 10;
+    if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 10;
+
+    setAlbumContextMenu({ x, y, album });
+  };
+
+  const handleDeleteAlbum = (albumId: string) => {
+    setAlbums(prev => prev.filter(a => a.id !== albumId));
+  };
 
   useEffect(() => {
     const fetchLibrary = async () => {
@@ -141,7 +170,7 @@ export default function Home() {
           </Link>
           
           {albums.slice(0, 4).map(album => (
-            <Link key={album.id} href={`/library/album/${album.id}`} className="group">
+            <Link key={album.id} href={`/library/album/${album.id}`} className="group" onContextMenu={(e) => handleContextMenu(e, album)}>
               <div className="bg-[var(--card-bg)] p-4 rounded-xl hover:bg-[var(--card-hover)] transition-all duration-300 cursor-pointer h-full flex flex-col hover:shadow-xl hover:-translate-y-1">
                 <div className="relative w-full aspect-square rounded-md overflow-hidden mb-4 shadow-lg bg-gray-800 flex items-center justify-center">
                   {album.cover_image ? (
@@ -201,6 +230,16 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {albumContextMenu && (
+        <AlbumContextMenu
+          x={albumContextMenu.x}
+          y={albumContextMenu.y}
+          album={albumContextMenu.album}
+          onClose={() => setAlbumContextMenu(null)}
+          onDeleteAlbum={handleDeleteAlbum}
+        />
+      )}
     </div>
   );
 }

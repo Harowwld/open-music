@@ -47,6 +47,11 @@ interface PlayerContextType {
   closeAlbumModal: () => void;
   downloadProgress: { total: number; current: number } | null;
   downloadTracks: (tracks: Track[]) => Promise<void>;
+  downloadingTrackIds: Set<string>;
+  downloadedTrackIds: Set<string>;
+  downloadTrack: (track: Track) => Promise<void>;
+  removeDownload: (track: Track) => Promise<void>;
+  removeDownloads: (tracks: Track[]) => Promise<void>;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
@@ -63,11 +68,79 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [albumModalTracks, setAlbumModalTracks] = useState<Track[] | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<{ total: number; current: number } | null>(null);
   
+  const [downloadingTrackIds, setDownloadingTrackIds] = useState<Set<string>>(new Set());
+  const [downloadedTrackIds, setDownloadedTrackIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    fetch('/api/downloaded')
+      .then(res => res.json())
+      .then(data => {
+        if (data.tracks) {
+          setDownloadedTrackIds(new Set(data.tracks.map((t: Track) => t.id)));
+        }
+      })
+      .catch(err => console.error(err));
+  }, []);
+  
   const openAlbumModal = (trackOrTracks: Track | Track[]) => {
     setAlbumModalTracks(Array.isArray(trackOrTracks) ? trackOrTracks : [trackOrTracks]);
   };
   const closeAlbumModal = () => setAlbumModalTracks(null);
   
+  const downloadTrack = async (track: Track) => {
+    setDownloadingTrackIds(prev => {
+      const next = new Set(prev);
+      next.add(track.id);
+      return next;
+    });
+    try {
+      const res = await fetch('/api/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(track)
+      });
+      if (res.ok) {
+        setDownloadedTrackIds(prev => {
+          const next = new Set(prev);
+          next.add(track.id);
+          return next;
+        });
+      }
+    } catch (e) {
+      console.error("Failed to download", track.title);
+    } finally {
+      setDownloadingTrackIds(prev => {
+        const next = new Set(prev);
+        next.delete(track.id);
+        return next;
+      });
+    }
+  };
+
+  const removeDownload = async (track: Track) => {
+    try {
+      const res = await fetch(`/api/download?id=${track.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setDownloadedTrackIds(prev => {
+          const next = new Set(prev);
+          next.delete(track.id);
+          return next;
+        });
+      }
+    } catch (e) {
+      console.error("Failed to remove download", track.title);
+    }
+  };
+
+  const removeDownloads = async (tracksToRemove: Track[]) => {
+    if (tracksToRemove.length === 0) return;
+    for (const track of tracksToRemove) {
+      if (downloadedTrackIds.has(track.id)) {
+        await removeDownload(track);
+      }
+    }
+  };
+
   const downloadTracks = async (tracksToDownload: Track[]) => {
     if (tracksToDownload.length === 0) return;
     setDownloadProgress({ total: tracksToDownload.length, current: 0 });
@@ -76,19 +149,37 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     const concurrencyLimit = 5;
     const queueToDownload = [...tracksToDownload];
     
+    setDownloadingTrackIds(prev => {
+      const next = new Set(prev);
+      tracksToDownload.forEach(t => next.add(t.id));
+      return next;
+    });
+    
     const worker = async () => {
       while (queueToDownload.length > 0) {
         const track = queueToDownload.shift();
         if (!track) break;
         try {
-          await fetch('/api/download', {
+          const res = await fetch('/api/download', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(track)
           });
+          if (res.ok) {
+             setDownloadedTrackIds(prev => {
+               const next = new Set(prev);
+               next.add(track.id);
+               return next;
+             });
+          }
         } catch (e) {
           console.error("Failed to download", track.title);
         } finally {
+          setDownloadingTrackIds(prev => {
+            const next = new Set(prev);
+            next.delete(track.id);
+            return next;
+          });
           downloadedCount++;
           setDownloadProgress({ total: tracksToDownload.length, current: downloadedCount });
         }
@@ -371,6 +462,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         closeAlbumModal,
         downloadProgress,
         downloadTracks,
+        downloadingTrackIds,
+        downloadedTrackIds,
+        downloadTrack,
+        removeDownload,
+        removeDownloads,
       }}
     >
       {children}

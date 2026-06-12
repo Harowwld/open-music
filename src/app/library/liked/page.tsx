@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { usePlayer, Track } from "@/context/PlayerContext";
-import { Play, Trash2, Download, Heart, Disc } from "lucide-react";
+import { Play, Trash2, Download, Heart, Disc, Check, Loader2 } from "lucide-react";
 import TrackContextMenu from "@/components/TrackContextMenu";
 
 export default function LibraryPage() {
   const [results, setResults] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const { playTrack, currentTrack, isPlaying, openAlbumModal, addToQueue } = usePlayer();
+  const { playTrack, currentTrack, isPlaying, openAlbumModal, addToQueue, downloadingTrackIds, downloadedTrackIds, downloadTrack, removeDownload } = usePlayer();
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: Track } | null>(null);
 
@@ -137,7 +137,12 @@ export default function LibraryPage() {
                       <span className={`font-semibold ${isCurrentlyPlaying ? "text-[var(--brand-gold)]" : "text-white"}`}>
                         {track.title}
                       </span>
-                      <span className="text-sm text-[var(--text-muted)]">
+                      <span className="text-sm text-[var(--text-muted)] flex items-center gap-1.5">
+                        {downloadingTrackIds.has(track.id) ? (
+                          <Loader2 className="w-3.5 h-3.5 text-[var(--brand-gold)] animate-spin" title="Downloading..." />
+                        ) : downloadedTrackIds.has(track.id) ? (
+                          <Check className="w-3.5 h-3.5 text-[var(--brand-gold)]" title="Downloaded" />
+                        ) : null}
                         {track.artist}
                       </span>
                     </div>
@@ -170,19 +175,9 @@ export default function LibraryPage() {
           onAddToQueue={addToQueue}
           onToggleLike={removeFromLibrary}
           onAddToAlbum={openAlbumModal}
-          onDownload={async (track) => {
-            try {
-              const res = await fetch('/api/download', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(track)
-              });
-              if (res.ok) alert(`Downloaded ${track.title} for offline playback!`);
-              else throw new Error('Failed');
-            } catch (e) {
-              alert('Failed to download track');
-            }
-          }}
+          onDownload={downloadTrack}
+          onRemoveDownload={removeDownload}
+          isDownloaded={downloadedTrackIds.has(contextMenu.track.id)}
         />
       )}
     </div>

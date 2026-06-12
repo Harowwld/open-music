@@ -16,6 +16,7 @@ interface TrackContextMenuProps {
   // Specific Actions
   onRemoveFromAlbum?: (track: Track) => void;
   onRemoveDownload?: (track: Track) => void;
+  isDownloaded?: boolean;
 }
 
 export default function TrackContextMenu({
@@ -29,11 +30,12 @@ export default function TrackContextMenu({
   onAddToAlbum,
   onDownload,
   onRemoveFromAlbum,
-  onRemoveDownload
+  onRemoveDownload,
+  isDownloaded
 }: TrackContextMenuProps) {
   return (
     <div 
-      className="fixed z-[100] bg-[var(--card-bg)] border border-[var(--border-color)] shadow-xl rounded-lg py-2 w-48 text-sm glass no-drag"
+      className="fixed z-[100] bg-[var(--card-bg)] border border-[var(--border-color)] shadow-xl rounded-lg py-2 w-48 text-sm no-drag"
       style={{ top: y, left: x }}
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
@@ -78,15 +80,27 @@ export default function TrackContextMenu({
       >
         <Disc className="w-4 h-4" /> Add to Album
       </button>
-      <button 
-        className="w-full text-left px-4 py-2 hover:bg-[var(--card-hover)] hover:text-white transition-colors flex items-center gap-3"
-        onClick={() => {
-          onDownload(track);
-          onClose();
-        }}
-      >
-        <Download className="w-4 h-4" /> Download
-      </button>
+      {!isDownloaded ? (
+        <button 
+          className="w-full text-left px-4 py-2 hover:bg-[var(--card-hover)] hover:text-white transition-colors flex items-center gap-3"
+          onClick={() => {
+            onDownload(track);
+            onClose();
+          }}
+        >
+          <Download className="w-4 h-4" /> Download
+        </button>
+      ) : (
+        <button 
+          className="w-full text-left px-4 py-2 hover:bg-red-500/20 text-red-400 transition-colors flex items-center gap-3"
+          onClick={() => {
+            if (onRemoveDownload) onRemoveDownload(track);
+            onClose();
+          }}
+        >
+          <Trash2 className="w-4 h-4" /> Remove Download
+        </button>
+      )}
 
       {onRemoveFromAlbum && (
         <button 
@@ -97,18 +111,6 @@ export default function TrackContextMenu({
           }}
         >
           <Trash2 className="w-4 h-4" /> Remove from Album
-        </button>
-      )}
-
-      {onRemoveDownload && (
-        <button 
-          className="w-full text-left px-4 py-2 hover:bg-red-500/20 text-red-400 transition-colors flex items-center gap-3"
-          onClick={() => {
-            onRemoveDownload(track);
-            onClose();
-          }}
-        >
-          <Trash2 className="w-4 h-4" /> Remove Download
         </button>
       )}
     </div>

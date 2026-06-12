@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { usePlayer, Track } from "@/context/PlayerContext";
-import { Search, Play, Pause, ListPlus, Library, Download, Loader2, Heart, Disc } from "lucide-react";
+import { Search, Play, Pause, ListPlus, Library, Download, Loader2, Heart, Disc, Check } from "lucide-react";
 import TrackContextMenu from "@/components/TrackContextMenu";
 
 export default function SearchPage() {
@@ -10,7 +10,22 @@ export default function SearchPage() {
   const [results, setResults] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const { playTrack, currentTrack, isPlaying, openAlbumModal, addToQueue } = usePlayer();
+  const { playTrack, currentTrack, isPlaying, openAlbumModal, addToQueue, downloadingTrackIds, downloadedTrackIds, downloadTrack, history, removeDownload } = usePlayer();
+
+  const recentTracks = useMemo(() => {
+    const deduped = new Map();
+    if (currentTrack) {
+      deduped.set(currentTrack.id, currentTrack);
+    }
+    for (let i = history.length - 1; i >= 0; i--) {
+      const track = history[i];
+      if (!deduped.has(track.id)) {
+        deduped.set(track.id, track);
+      }
+      if (deduped.size >= 50) break;
+    }
+    return Array.from(deduped.values());
+  }, [history, currentTrack]);
 
   const [suggestions, setSuggestions] = useState<Track[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -172,11 +187,13 @@ export default function SearchPage() {
           </div>
         )}
 
-        {!isLoading && results.length > 0 && (
+        {!isLoading && (query.trim() ? results.length > 0 : recentTracks.length > 0) && (
           <div>
-            <h2 className="text-2xl font-bold mb-6 text-white">Search Results</h2>
+            <h2 className="text-2xl font-bold mb-6 text-white">
+              {query.trim() ? "Search Results" : "Recently Played"}
+            </h2>
             <div className="flex flex-col gap-2">
-              {results.map((track) => {
+              {(query.trim() ? results : recentTracks).map((track) => {
                 const isCurrentlyPlaying = currentTrack?.id === track.id;
                 
                 return (
@@ -209,7 +226,12 @@ export default function SearchPage() {
                         <span className={`font-semibold ${isCurrentlyPlaying ? "text-[var(--brand-gold)]" : "text-white"}`}>
                           {track.title}
                         </span>
-                        <span className="text-sm text-[var(--text-muted)]">
+                        <span className="text-sm text-[var(--text-muted)] flex items-center gap-1.5">
+                          {downloadingTrackIds.has(track.id) ? (
+                            <Loader2 className="w-3.5 h-3.5 text-[var(--brand-gold)] animate-spin" title="Downloading..." />
+                          ) : downloadedTrackIds.has(track.id) ? (
+                            <Check className="w-3.5 h-3.5 text-[var(--brand-gold)]" title="Downloaded" />
+                          ) : null}
                           {track.artist}
                         </span>
                       </div>
@@ -243,19 +265,9 @@ export default function SearchPage() {
           onAddToQueue={addToQueue}
           onToggleLike={toggleLike}
           onAddToAlbum={openAlbumModal}
-          onDownload={async (track) => {
-            try {
-              const res = await fetch('/api/download', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(track)
-              });
-              if (res.ok) alert(`Downloaded ${track.title} for offline playback!`);
-              else throw new Error('Failed');
-            } catch (e) {
-              alert('Failed to download track');
-            }
-          }}
+          onDownload={downloadTrack}
+          onRemoveDownload={removeDownload}
+          isDownloaded={contextMenu ? downloadedTrackIds.has(contextMenu.track.id) : false}
         />
       )}
     </div>

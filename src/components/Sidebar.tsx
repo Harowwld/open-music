@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Search, Library, Download } from "lucide-react";
+import { Home, Search, Library } from "lucide-react";
 import { usePlayer } from "@/context/PlayerContext";
 
 export default function Sidebar() {
@@ -18,7 +18,6 @@ export default function Sidebar() {
     { href: "/", label: "Home", icon: Home },
     { href: "/search", label: "Search", icon: Search },
     { href: "/library", label: "Your Library", icon: Library },
-    { href: "/downloaded", label: "Downloaded Music", icon: Download },
   ];
 
   return (
