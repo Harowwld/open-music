@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react";
 import { usePlayer, Track } from "@/context/PlayerContext";
 import { Play, Trash2, Download, Heart, Disc } from "lucide-react";
+import TrackContextMenu from "@/components/TrackContextMenu";
 
 export default function LibraryPage() {
   const [results, setResults] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const { playTrack, currentTrack, isPlaying, openAlbumModal } = usePlayer();
+  const { playTrack, currentTrack, isPlaying, openAlbumModal, addToQueue } = usePlayer();
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: Track } | null>(null);
 
@@ -160,70 +161,29 @@ export default function LibraryPage() {
 
       {/* Context Menu Overlay */}
       {contextMenu && (
-        <div 
-          className="fixed z-[100] bg-[var(--card-bg)] border border-[var(--border-color)] shadow-xl rounded-lg py-2 w-48 text-sm glass"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
-          onClick={(e) => e.stopPropagation()}
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <div className="px-4 py-2 text-[var(--text-muted)] border-b border-[var(--border-color)] mb-1 truncate font-semibold text-xs">
-            {contextMenu.track.title}
-          </div>
-          <button 
-            className="w-full text-left px-4 py-2 hover:bg-[var(--card-hover)] hover:text-white transition-colors flex items-center gap-2"
-            onClick={() => {
-              playTrack(contextMenu.track);
-              setContextMenu(null);
-            }}
-          >
-            <Play className="w-4 h-4 fill-current" /> Play
-          </button>
-          <button 
-            className="w-full text-left px-4 py-2 hover:bg-red-500/20 text-red-400 transition-colors flex items-center gap-2"
-            onClick={() => {
-              removeFromLibrary(contextMenu.track);
-              setContextMenu(null);
-            }}
-          >
-            <Heart className="w-4 h-4" /> Unlike
-          </button>
-          <button 
-            className="w-full text-left px-4 py-2 hover:bg-[var(--card-hover)] hover:text-white transition-colors flex items-center gap-2"
-            onClick={() => {
-              const track = contextMenu.track;
-              setContextMenu(null);
-              openAlbumModal(track);
-            }}
-          >
-            <Disc className="w-4 h-4" /> Add to Album
-          </button>
-          <button 
-            className="w-full text-left px-4 py-2 hover:bg-[var(--card-hover)] hover:text-white transition-colors flex items-center gap-2"
-            onClick={async () => {
-              const track = contextMenu.track;
-              setContextMenu(null);
-              try {
-                // Download directly to local storage and DB
-                const res = await fetch('/api/download', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(track)
-                });
-                if (res.ok) {
-                  alert(`Downloaded ${track.title} for offline playback!`);
-                  // Optionally refresh the library page to show offline status
-                  window.location.reload();
-                } else {
-                  throw new Error('Failed');
-                }
-              } catch (e) {
-                alert('Failed to download track');
-              }
-            }}
-          >
-            <Download className="w-4 h-4" /> Download
-          </button>
-        </div>
+        <TrackContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          track={contextMenu.track}
+          onClose={() => setContextMenu(null)}
+          onPlay={playTrack}
+          onAddToQueue={addToQueue}
+          onToggleLike={removeFromLibrary}
+          onAddToAlbum={openAlbumModal}
+          onDownload={async (track) => {
+            try {
+              const res = await fetch('/api/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(track)
+              });
+              if (res.ok) alert(`Downloaded ${track.title} for offline playback!`);
+              else throw new Error('Failed');
+            } catch (e) {
+              alert('Failed to download track');
+            }
+          }}
+        />
       )}
     </div>
   );

@@ -5,20 +5,20 @@ import { usePlayer } from "@/context/PlayerContext";
 import { Plus, X, Disc } from "lucide-react";
 
 export default function AlbumModal() {
-  const { albumModalTrack, closeAlbumModal } = usePlayer();
+  const { albumModalTracks, closeAlbumModal } = usePlayer();
   const [albums, setAlbums] = useState<any[]>([]);
   const [newAlbumTitle, setNewAlbumTitle] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (albumModalTrack) {
+    if (albumModalTracks && albumModalTracks.length > 0) {
       fetch('/api/albums')
         .then(res => res.json())
         .then(data => setAlbums(data.albums || []));
     }
-  }, [albumModalTrack]);
+  }, [albumModalTracks]);
 
-  if (!albumModalTrack) return null;
+  if (!albumModalTracks || albumModalTracks.length === 0) return null;
 
   const handleCreate = async () => {
     if (!newAlbumTitle.trim()) return;
@@ -27,7 +27,7 @@ export default function AlbumModal() {
       const res = await fetch('/api/albums', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: newAlbumTitle, cover_image: albumModalTrack.thumbnail })
+        body: JSON.stringify({ title: newAlbumTitle, cover_image: albumModalTracks[0].thumbnail })
       });
       const album = await res.json();
       if (album.id) {
@@ -40,20 +40,20 @@ export default function AlbumModal() {
   };
 
   const handleAddToAlbum = async (album_id: string) => {
+    setLoading(true);
     try {
-      const res = await fetch('/api/albums/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ album_id, track: albumModalTrack })
-      });
-      if (res.ok) {
-        closeAlbumModal();
-      } else {
-        alert('Failed to add to album');
+      for (const track of albumModalTracks) {
+        await fetch('/api/albums/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ album_id, track })
+        });
       }
+      closeAlbumModal();
     } catch (e) {
       alert('Failed to add to album');
     }
+    setLoading(false);
   };
 
   return (
@@ -66,14 +66,18 @@ export default function AlbumModal() {
           </button>
         </div>
 
-        <div className="mb-6 flex items-center gap-4 bg-[var(--card-hover)] p-3 rounded-lg">
-          <div className="w-12 h-12 flex-shrink-0 rounded bg-gray-800 overflow-hidden">
-            {albumModalTrack.thumbnail && <img src={albumModalTrack.thumbnail} alt="Cover" className="w-full h-full object-cover" />}
-          </div>
-          <div className="truncate">
-            <p className="font-semibold text-white truncate">{albumModalTrack.title}</p>
-            <p className="text-sm text-[var(--text-muted)] truncate">{albumModalTrack.artist}</p>
-          </div>
+        <div className="mb-6 flex flex-col gap-2 bg-[var(--card-hover)] p-3 rounded-lg max-h-40 overflow-y-auto">
+          {albumModalTracks.map((track) => (
+            <div key={track.id} className="flex items-center gap-3">
+              <div className="w-10 h-10 flex-shrink-0 rounded bg-gray-800 overflow-hidden">
+                {track.thumbnail && <img src={track.thumbnail} alt="Cover" className="w-full h-full object-cover" />}
+              </div>
+              <div className="truncate flex-1">
+                <p className="font-semibold text-white truncate text-sm">{track.title}</p>
+                <p className="text-xs text-[var(--text-muted)] truncate">{track.artist}</p>
+              </div>
+            </div>
+          ))}
         </div>
 
         <div className="max-h-60 overflow-y-auto mb-6 flex flex-col gap-2 pr-2">
@@ -98,7 +102,7 @@ export default function AlbumModal() {
           <input
             type="text"
             placeholder="New Album Name"
-            value={newAlbumTitle}
+            value={newAlbumTitle ?? ""}
             onChange={e => setNewAlbumTitle(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleCreate()}
             className="flex-1 bg-[var(--background)] border border-[var(--border-color)] rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-[var(--brand-gold)]"
