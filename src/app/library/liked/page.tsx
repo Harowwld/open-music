@@ -2,16 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { usePlayer, Track } from "@/context/PlayerContext";
-import { Play, Trash2, Download, Heart, Disc, Check, Loader2 } from "lucide-react";
+import { Play, Trash2, Download as DownloadIcon, Heart, Disc, Check, Loader2, ListPlus, CloudOff } from "lucide-react";
 import TrackContextMenu from "@/components/TrackContextMenu";
+import { useTrackSelection } from "@/hooks/useTrackSelection";
+import BulkActionBar from "@/components/BulkActionBar";
 
 export default function LibraryPage() {
   const [results, setResults] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const { playTrack, currentTrack, isPlaying, openAlbumModal, addToQueue, downloadingTrackIds, downloadedTrackIds, downloadTrack, removeDownload } = usePlayer();
+  const { playTrack, currentTrack, isPlaying, openAlbumModal, addToQueue, addMultipleToQueue, downloadingTrackIds, downloadedTrackIds, downloadTrack, downloadTracks, removeDownload, removeDownloads } = usePlayer();
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: Track } | null>(null);
+
+  const { selectedTrackIds, handleMouseDown, handleMouseEnter, clearSelection, selectAll, withSelectionGuard } = useTrackSelection(results);
 
   const fetchLibrary = async () => {
     setIsLoading(true);
@@ -63,6 +67,28 @@ export default function LibraryPage() {
     }
   };
 
+  const handleBulkUnlike = async () => {
+    if (!confirm(`Unlike ${selectedTrackIds.size} tracks?`)) return;
+    const tracksToRemove = results.filter(t => selectedTrackIds.has(t.id));
+    for (const t of tracksToRemove) {
+      await removeFromLibrary(t);
+    }
+    clearSelection();
+  };
+
+  const handleBulkQueue = () => {
+    const selectedTracks = results.filter(t => selectedTrackIds.has(t.id));
+    addMultipleToQueue(selectedTracks);
+    clearSelection();
+  };
+
+  const handleBulkDownload = async () => {
+    const selectedTracks = results.filter(t => selectedTrackIds.has(t.id));
+    if (selectedTracks.length === 0) return;
+    downloadTracks(selectedTracks);
+    clearSelection();
+  };
+
   const formatDuration = (val?: number | string) => {
     if (!val) return "";
     if (typeof val === 'string' && val.includes(':') && !val.includes('NaN')) return val;
@@ -74,7 +100,7 @@ export default function LibraryPage() {
   };
 
   return (
-    <div className="p-8 pb-32">
+    <div className="p-8 pb-32 select-none">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center gap-4 mb-8">
           <button 
@@ -109,17 +135,21 @@ export default function LibraryPage() {
           <div className="flex flex-col gap-2">
             {results.map((track) => {
               const isCurrentlyPlaying = currentTrack?.id === track.id;
+              const isSelected = selectedTrackIds.has(track.id);
+              const isSelectionActive = selectedTrackIds.size > 0;
               
               return (
                 <div
                   key={track.id}
-                  onClick={() => playTrack(track)}
-                  onContextMenu={(e) => handleContextMenu(e, track)}
-                  className={`flex items-center justify-between p-3 rounded-md cursor-pointer hover:bg-[var(--card-hover)] transition-colors group ${
-                    isCurrentlyPlaying ? "bg-[var(--card-hover)]" : ""
-                  }`}
+                  onClick={withSelectionGuard(track.id, () => playTrack(track))}
+                  onMouseDown={(e) => handleMouseDown(e, track.id)}
+                  onMouseEnter={() => handleMouseEnter(track.id)}
+                  onContextMenu={(e) => !isSelectionActive && handleContextMenu(e, track)}
+                  className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors group ${
+                    isCurrentlyPlaying && !isSelectionActive ? "bg-[var(--card-hover)]" : "hover:bg-[var(--card-hover)]"
+                  } ${isSelected ? "bg-[var(--brand-gold)]/20 border border-[var(--brand-gold)]/50" : "border border-transparent"}`}
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 pointer-events-none">
                     <div className="relative w-12 h-12 rounded overflow-hidden shadow-md flex-shrink-0">
                       {track.thumbnail ? (
                         <img
@@ -130,14 +160,16 @@ export default function LibraryPage() {
                       ) : (
                         <div className="w-full h-full bg-gray-800" />
                       )}
-                      <div className="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center">
-                        <span className="text-white text-xl">
-                          {isCurrentlyPlaying && isPlaying ? "⏸" : "▶"}
-                        </span>
-                      </div>
+                      {!isSelectionActive && (
+                        <div className="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center">
+                          <span className="text-white text-xl">
+                            {isCurrentlyPlaying && isPlaying ? "⏸" : "▶"}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex flex-col">
-                      <span className={`font-semibold ${isCurrentlyPlaying ? "text-[var(--brand-gold)]" : "text-white"}`}>
+                      <span className={`font-semibold ${isCurrentlyPlaying && !isSelectionActive ? "text-[var(--brand-gold)]" : "text-white"}`}>
                         {track.title}
                       </span>
                       <span className="text-sm text-[var(--text-muted)] flex items-center gap-1.5">
@@ -150,22 +182,38 @@ export default function LibraryPage() {
                       </span>
                     </div>
                   </div>
-                  <div className="text-sm text-[var(--text-muted)] flex items-center gap-4">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); removeFromLibrary(track); }}
-                      className="text-[var(--brand-gold)] hover:text-[var(--text-muted)] transition-colors"
-                      title="Unlike"
-                    >
-                      <Heart className="w-5 h-5 fill-current" />
-                    </button>
-                    {formatDuration(track.duration)}
-                  </div>
+                  {!isSelectionActive && (
+                    <div className="text-sm text-[var(--text-muted)] flex items-center gap-4">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); removeFromLibrary(track); }}
+                        className="text-[var(--brand-gold)] hover:text-[var(--text-muted)] transition-colors"
+                        title="Unlike"
+                      >
+                        <Heart className="w-5 h-5 fill-current" />
+                      </button>
+                      {formatDuration(track.duration)}
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         )}
       </div>
+
+      <BulkActionBar selectedCount={selectedTrackIds.size} onClear={clearSelection}>
+        <button onClick={selectAll} className="text-sm font-medium hover:text-white text-[var(--text-muted)] px-2">Select All</button>
+        <div className="w-px h-4 bg-white/10 mx-1"></div>
+        <button onClick={handleBulkQueue} className="text-[var(--text-muted)] hover:text-white transition-colors" title="Add to Queue">
+          <ListPlus className="w-5 h-5" />
+        </button>
+        <button onClick={handleBulkDownload} className="text-[var(--text-muted)] hover:text-white transition-colors" title="Download">
+          <DownloadIcon className="w-5 h-5" />
+        </button>
+        <button onClick={handleBulkUnlike} className="text-red-400 hover:text-red-300 transition-colors" title="Unlike">
+          <Heart className="w-5 h-5" />
+        </button>
+      </BulkActionBar>
 
       {/* Context Menu Overlay */}
       {contextMenu && (

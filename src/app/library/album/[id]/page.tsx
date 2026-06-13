@@ -2,8 +2,10 @@
 
 import { useState, useEffect, use } from "react";
 import { usePlayer, Track } from "@/context/PlayerContext";
-import { Play, Trash2, Heart, Disc, Download as DownloadIcon, ListPlus, Shuffle, CheckSquare, Square, X, CheckCircle2, Check, Loader2, CloudOff } from "lucide-react";
+import { Play, Trash2, Heart, Disc, Download as DownloadIcon, ListPlus, Shuffle, X, CheckCircle2, Check, Loader2, CloudOff, Search } from "lucide-react";
 import TrackContextMenu from "@/components/TrackContextMenu";
+import { useTrackSelection } from "@/hooks/useTrackSelection";
+import BulkActionBar from "@/components/BulkActionBar";
 
 export default function AlbumViewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -13,8 +15,8 @@ export default function AlbumViewPage({ params }: { params: Promise<{ id: string
   const { playTrack, currentTrack, isPlaying, openAlbumModal, addToQueue, addMultipleToQueue, downloadTracks, downloadingTrackIds, downloadedTrackIds, downloadTrack, removeDownload, removeDownloads } = usePlayer();
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: Track } | null>(null);
   
-  const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [selectedTrackIds, setSelectedTrackIds] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+  const { selectedTrackIds, handleMouseDown, handleMouseEnter, clearSelection, selectAll, withSelectionGuard } = useTrackSelection(tracks);
 
   useEffect(() => {
     const handleClickOutside = () => setContextMenu(null);
@@ -107,62 +109,53 @@ export default function AlbumViewPage({ params }: { params: Promise<{ id: string
     downloadTracks(tracks);
   };
 
-  const toggleSelectionMode = () => {
-    setIsSelectionMode(!isSelectionMode);
-    setSelectedTrackIds(new Set());
-  };
-
-  const toggleSelection = (id: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    const next = new Set(selectedTrackIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelectedTrackIds(next);
-  };
-
   const handleBulkDelete = async () => {
     if (!confirm(`Remove ${selectedTrackIds.size} tracks from this album?`)) return;
     const tracksToRemove = tracks.filter(t => selectedTrackIds.has(t.id));
     for (const t of tracksToRemove) {
       await removeTrack(t);
     }
-    toggleSelectionMode();
+    clearSelection();
   };
 
   const handleBulkQueue = () => {
     const selectedTracks = tracks.filter(t => selectedTrackIds.has(t.id));
     addMultipleToQueue(selectedTracks);
-    toggleSelectionMode();
+    clearSelection();
   };
 
   const handleBulkDownload = async () => {
     const selectedTracks = tracks.filter(t => selectedTrackIds.has(t.id));
     if (selectedTracks.length === 0) return;
     downloadTracks(selectedTracks);
-    toggleSelectionMode();
+    clearSelection();
   };
 
   const handleBulkRemoveDownload = async () => {
     const selectedTracks = tracks.filter(t => selectedTrackIds.has(t.id));
     if (selectedTracks.length === 0) return;
     await removeDownloads(selectedTracks);
-    toggleSelectionMode();
+    clearSelection();
   };
+
+  const filteredTracks = tracks.filter(t => 
+    t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    t.artist.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const fullyDownloaded = tracks.length > 0 && tracks.every(t => downloadedTrackIds.has(t.id));
   const someDownloaded = tracks.length > 0 && tracks.some(t => downloadedTrackIds.has(t.id));
-
 
   if (isLoading) return <div className="p-8 flex justify-center"><span className="animate-spin text-3xl">💿</span></div>;
   if (!album) return <div className="p-8 text-center text-red-500">Album not found</div>;
 
   return (
-    <div className="p-8 pb-32">
+    <div className="p-8 pb-32 select-none">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-end gap-6 mb-8 bg-gradient-to-t from-black/40 to-transparent p-6 -mx-8 -mt-8 pt-20">
           <div className="w-48 h-48 rounded-lg shadow-2xl overflow-hidden bg-gray-800 flex items-center justify-center flex-shrink-0">
             {album.cover_image ? (
-              <img src={album.cover_image} alt={album.title} className="w-full h-full object-cover" />
+              <img src={album.cover_image} alt={album.title} className="w-full h-full object-cover pointer-events-none" />
             ) : (
               <Disc className="w-20 h-20 text-gray-500" />
             )}
@@ -195,7 +188,6 @@ export default function AlbumViewPage({ params }: { params: Promise<{ id: string
             <ListPlus className="w-8 h-8" />
           </button>
           
-          
           {!fullyDownloaded && (
             <button
               onClick={downloadAll}
@@ -216,16 +208,18 @@ export default function AlbumViewPage({ params }: { params: Promise<{ id: string
             </button>
           )}
           
-          <button
-            onClick={toggleSelectionMode}
-            className={`p-2 transition-colors rounded-lg flex items-center gap-2 ${isSelectionMode ? 'bg-[var(--brand-gold)] text-black font-bold' : 'text-[var(--text-muted)] hover:text-white'}`}
-          >
-            <CheckSquare className="w-6 h-6" />
-            {isSelectionMode ? "Done" : "Select"}
-          </button>
+          <div className="flex-1"></div>
+          <div className="relative">
+            <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input 
+              type="text" 
+              placeholder="Search in album..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-black/40 border border-white/10 rounded-full pl-10 pr-4 py-2 text-sm text-white focus:outline-none focus:border-[var(--brand-gold)] w-64 transition-all"
+            />
+          </div>
         </div>
-
-
 
         {tracks.length === 0 && (
           <div className="text-center py-20 text-[var(--text-muted)]">
@@ -233,38 +227,39 @@ export default function AlbumViewPage({ params }: { params: Promise<{ id: string
           </div>
         )}
 
+        {tracks.length > 0 && filteredTracks.length === 0 && (
+          <div className="text-center py-20 text-[var(--text-muted)]">
+            <p>No songs found matching "{searchQuery}".</p>
+          </div>
+        )}
+
         <div className="flex flex-col gap-2 pb-24">
-          {tracks.map((track) => {
+          {filteredTracks.map((track) => {
             const isCurrentlyPlaying = currentTrack?.id === track.id;
             const isSelected = selectedTrackIds.has(track.id);
+            const isSelectionActive = selectedTrackIds.size > 0;
             return (
               <div
                 key={track.id}
-                onClick={(e) => {
-                  if (isSelectionMode) toggleSelection(track.id, e);
-                  else playTrack(track);
-                }}
-                onContextMenu={(e) => !isSelectionMode && handleContextMenu(e, track)}
+                onClick={withSelectionGuard(track.id, () => playTrack(track))}
+                onMouseDown={(e) => handleMouseDown(e, track.id)}
+                onMouseEnter={() => handleMouseEnter(track.id)}
+                onContextMenu={(e) => !isSelectionActive && handleContextMenu(e, track)}
                 className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors group ${
-                  isCurrentlyPlaying && !isSelectionMode ? "bg-[var(--card-hover)]" : "hover:bg-[var(--card-hover)]"
+                  isCurrentlyPlaying && !isSelectionActive ? "bg-[var(--card-hover)]" : "hover:bg-[var(--card-hover)]"
                 } ${isSelected ? "bg-[var(--brand-gold)]/20 border border-[var(--brand-gold)]/50" : "border border-transparent"}`}
               >
-                <div className="flex items-center gap-4">
-                  {isSelectionMode && (
-                    <div className="text-[var(--text-muted)] hover:text-white flex-shrink-0">
-                      {isSelected ? <CheckSquare className="w-6 h-6 text-[var(--brand-gold)]" /> : <Square className="w-6 h-6" />}
-                    </div>
-                  )}
+                <div className="flex items-center gap-4 pointer-events-none">
                   <div className="relative w-12 h-12 rounded overflow-hidden shadow-md flex-shrink-0">
                     {track.thumbnail ? <img src={track.thumbnail} alt={track.title} className="object-cover w-full h-full" /> : <div className="w-full h-full bg-gray-800" />}
-                    {!isSelectionMode && (
+                    {!isSelectionActive && (
                       <div className="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center">
                         <span className="text-white text-xl">{isCurrentlyPlaying && isPlaying ? "⏸" : "▶"}</span>
                       </div>
                     )}
                   </div>
                   <div className="flex flex-col">
-                    <span className={`font-semibold ${isCurrentlyPlaying && !isSelectionMode ? "text-[var(--brand-gold)]" : "text-white"}`}>{track.title}</span>
+                    <span className={`font-semibold ${isCurrentlyPlaying && !isSelectionActive ? "text-[var(--brand-gold)]" : "text-white"}`}>{track.title}</span>
                     <span className="text-sm text-[var(--text-muted)] flex items-center gap-1.5">
                       {downloadingTrackIds.has(track.id) ? (
                         <Loader2 className="w-3.5 h-3.5 text-[var(--brand-gold)] animate-spin" />
@@ -275,7 +270,7 @@ export default function AlbumViewPage({ params }: { params: Promise<{ id: string
                     </span>
                   </div>
                 </div>
-                {!isSelectionMode && (
+                {!isSelectionActive && (
                   <div className="flex items-center gap-4">
                     <button 
                       onClick={(e) => { e.stopPropagation(); removeTrack(track); }}
@@ -292,31 +287,22 @@ export default function AlbumViewPage({ params }: { params: Promise<{ id: string
         </div>
       </div>
 
-      {/* Bulk Action Bar */}
-      {isSelectionMode && selectedTrackIds.size > 0 && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-[var(--card-bg)] border border-[var(--border-color)] shadow-2xl rounded-full px-6 py-3 flex items-center gap-6 z-50 glass animate-in slide-in-from-bottom-10 fade-in">
-          <div className="flex items-center gap-2 pr-4 border-r border-[var(--border-color)]">
-            <span className="font-bold text-white bg-[var(--brand-gold)] text-black w-6 h-6 flex items-center justify-center rounded-full text-sm">
-              {selectedTrackIds.size}
-            </span>
-            <span className="text-sm text-[var(--text-muted)] font-medium">Selected</span>
-          </div>
-          <button onClick={() => setSelectedTrackIds(new Set(tracks.map(t => t.id)))} className="text-sm font-medium hover:text-white text-[var(--text-muted)]">Select All</button>
-          
-          <button onClick={handleBulkQueue} className="text-[var(--text-muted)] hover:text-white transition-colors" title="Add to Queue">
-            <ListPlus className="w-5 h-5" />
-          </button>
-          <button onClick={handleBulkDownload} className="text-[var(--text-muted)] hover:text-white transition-colors" title="Download">
-            <DownloadIcon className="w-5 h-5" />
-          </button>
-          <button onClick={handleBulkRemoveDownload} className="text-[var(--text-muted)] hover:text-red-400 transition-colors" title="Remove Downloads">
-            <CloudOff className="w-5 h-5" />
-          </button>
-          <button onClick={handleBulkDelete} className="text-red-400 hover:text-red-300 transition-colors" title="Remove from Album">
-            <Trash2 className="w-5 h-5" />
-          </button>
-        </div>
-      )}
+      <BulkActionBar selectedCount={selectedTrackIds.size} onClear={clearSelection}>
+        <button onClick={selectAll} className="text-sm font-medium hover:text-white text-[var(--text-muted)] px-2">Select All</button>
+        <div className="w-px h-4 bg-white/10 mx-1"></div>
+        <button onClick={handleBulkQueue} className="text-[var(--text-muted)] hover:text-white transition-colors" title="Add to Queue">
+          <ListPlus className="w-5 h-5" />
+        </button>
+        <button onClick={handleBulkDownload} className="text-[var(--text-muted)] hover:text-white transition-colors" title="Download">
+          <DownloadIcon className="w-5 h-5" />
+        </button>
+        <button onClick={handleBulkRemoveDownload} className="text-[var(--text-muted)] hover:text-red-400 transition-colors" title="Remove Downloads">
+          <CloudOff className="w-5 h-5" />
+        </button>
+        <button onClick={handleBulkDelete} className="text-red-400 hover:text-red-300 transition-colors" title="Remove from Album">
+          <Trash2 className="w-5 h-5" />
+        </button>
+      </BulkActionBar>
 
       {/* Context Menu Overlay */}
       {contextMenu && (

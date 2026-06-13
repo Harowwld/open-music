@@ -33,13 +33,10 @@ export async function POST(req: Request) {
     
     const args = [
       `https://www.youtube.com/watch?v=${track.id}`,
-      '--extract-audio',
-      '--audio-format', 'opus',
-      '--ffmpeg-location', ffmpeg as string,
+      '-f', '251/bestaudio',
       '--output', localPath,
       '--no-warnings',
       '--no-check-certificates',
-      '--prefer-free-formats',
       '--extractor-args', 'youtube:player_client=android,web',
       '--add-header', 'referer:youtube.com',
       '--add-header', 'user-agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -51,15 +48,11 @@ export async function POST(req: Request) {
       pythonPath = path.join(process.cwd(), '.next', 'standalone', 'python', 'bin', 'python3');
     }
 
-    if (fs.existsSync(pythonPath)) {
-      console.log('Using bundled python:', pythonPath);
+    const audioDownloadPromise = (fs.existsSync(pythonPath)) 
       // @ts-ignore
-      await execFileAsync(pythonPath, [youtubedl.constants.YOUTUBE_DL_PATH, ...args]);
-    } else {
-      console.log('Using system python');
+      ? execFileAsync(pythonPath, [youtubedl.constants.YOUTUBE_DL_PATH, ...args])
       // @ts-ignore
-      await execFileAsync(youtubedl.constants.YOUTUBE_DL_PATH, args);
-    }
+      : execFileAsync(youtubedl.constants.YOUTUBE_DL_PATH, args);
 
     // Save track details in the DB with local_path and isOffline
     const stmt = db.prepare(`
@@ -87,57 +80,69 @@ export async function POST(req: Request) {
     );
 
     // Fetch and save lyrics for offline use
-    let lyricsData: { syncedLyrics: string | null, plainLyrics: string | null, source: string | null } = { syncedLyrics: null, plainLyrics: null, source: null };
-    if (track.title && track.artist) {
-      try {
-        // Strip out anything from "(feat." or "feat." onwards, handling truncated YTMusic titles
-        const cleanTitle = track.title.replace(/\s*\(?feat\..*/i, '').replace(/\s*\[.*?\]/g, '');
-        // Extract just the primary artist before any commas or ampersands
-        const cleanArtist = track.artist.split(/[,&]|\band\b/i)[0].trim();
-        const query = `${cleanTitle} ${cleanArtist}`;
-        const lrclibUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
-        let foundLyrics = false;
-        let retryCount = 0;
-        const maxRetries = 3;
-        console.log(`Starting strict LRCLIB fetch loop for: ${query}`);
-        
-        while (!foundLyrics && retryCount < maxRetries) {
-          retryCount++;
-          try {
-            const lrclibRes = await fetch(lrclibUrl, {
-              headers: { 'User-Agent': 'AuraMusic/1.0.0 (https://github.com/aura-music)' }
-            });
-            if (lrclibRes.ok) {
-              const data = await lrclibRes.json();
-              if (data && data.length > 0) {
-                const syncedMatch = data.find((d: any) => d.syncedLyrics);
-                const bestMatch = syncedMatch || data[0];
-                if (bestMatch.syncedLyrics || bestMatch.plainLyrics) {
-                  lyricsData.syncedLyrics = bestMatch.syncedLyrics || null;
-                  lyricsData.plainLyrics = bestMatch.plainLyrics || null;
-                  lyricsData.source = 'lrclib';
-                  foundLyrics = true;
-                  console.log(`Successfully found lyrics for: ${query}`);
-                  break;
+    // Fetch and save lyrics for offline use
+    const lyricsPromise = (async () => {
+      let lyricsData: { syncedLyrics: string | null, plainLyrics: string | null, source: string | null } = { syncedLyrics: null, plainLyrics: null, source: null };
+      if (track.title && track.artist) {
+        try {
+          // Strip out anything from "(feat." or "feat." onwards, handling truncated YTMusic titles
+          const cleanTitle = track.title.replace(/\s*\(?feat\..*/i, '').replace(/\s*\[.*?\]/g, '');
+          // Extract just the primary artist before any commas or ampersands
+          const cleanArtist = track.artist.split(/[,&]|\band\b/i)[0].trim();
+          const query = `${cleanTitle} ${cleanArtist}`;
+          const lrclibUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
+          let foundLyrics = false;
+          let retryCount = 0;
+          const maxRetries = 3;
+          console.log(`Starting strict LRCLIB fetch loop for: ${query}`);
+          
+          while (!foundLyrics && retryCount < maxRetries) {
+            retryCount++;
+            try {
+              const lrclibRes = await fetch(lrclibUrl, {
+                headers: { 'User-Agent': 'AuraMusic/1.0.0 (https://github.com/aura-music)' }
+              });
+              
+              if (lrclibRes.status === 404) {
+                console.log(`Lyrics not found (404) for ${query}, aborting retries.`);
+                break;
+              }
+              
+              if (lrclibRes.ok) {
+                const data = await lrclibRes.json();
+                if (data && data.length > 0) {
+                  const syncedMatch = data.find((d: any) => d.syncedLyrics);
+                  const bestMatch = syncedMatch || data[0];
+                  if (bestMatch.syncedLyrics || bestMatch.plainLyrics) {
+                    lyricsData.syncedLyrics = bestMatch.syncedLyrics || null;
+                    lyricsData.plainLyrics = bestMatch.plainLyrics || null;
+                    lyricsData.source = 'lrclib';
+                    foundLyrics = true;
+                    console.log(`Successfully found lyrics for: ${query}`);
+                    break;
+                  }
                 }
               }
+            } catch (e) {
+              console.error('LRCLIB loop fetch error, will retry...', e);
             }
-          } catch (e) {
-            console.error('LRCLIB loop fetch error, will retry...', e);
+            
+            if (!foundLyrics) {
+              console.log(`No lyrics found yet for ${query}, retrying in 2s...`);
+              await new Promise(resolve => setTimeout(resolve, 2000));
+            }
           }
-          
-          if (!foundLyrics) {
-            console.log(`No lyrics found yet for ${query}, retrying in 2s...`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          }
+        } catch (e) {
+          console.error('LRCLIB download fetch error:', e);
         }
-      } catch (e) {
-        console.error('LRCLIB download fetch error:', e);
       }
-    }
+      return lyricsData;
+    })();
 
+    // Await both the audio download and the lyrics fetch concurrently
+    const [_, fetchedLyrics] = await Promise.all([audioDownloadPromise, lyricsPromise]);
 
-    fs.writeFileSync(path.join(offlineDir, `${track.id}.json`), JSON.stringify(lyricsData));
+    fs.writeFileSync(path.join(offlineDir, `${track.id}.json`), JSON.stringify(fetchedLyrics));
 
     return NextResponse.json({ success: true, message: 'Track downloaded successfully', local_path: localPath });
   } catch (error: any) {

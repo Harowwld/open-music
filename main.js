@@ -35,7 +35,7 @@ function createWindow() {
     }
   });
 
-  mainWindow.loadURL('http://localhost:3000');
+  mainWindow.loadURL('http://localhost:23456');
 
   mainWindow.on('closed', function () {
     mainWindow = null;
@@ -61,7 +61,7 @@ app.whenReady().then(() => {
     nextProcess = utilityProcess.fork(serverPath, [], {
       env: {
         ...process.env,
-        PORT: '3000',
+        PORT: '23456',
         NODE_ENV: 'production',
         HOSTNAME: 'localhost',
       },
@@ -71,7 +71,7 @@ app.whenReady().then(() => {
     nextProcess.stdout.on('data', (data) => {
       const output = data.toString();
       console.log('Next.js:', output);
-      if ((output.includes('Ready in') || output.includes('localhost:3000') || output.includes('ready')) && !mainWindow) {
+      if ((output.includes('Ready in') || output.includes('localhost:23456') || output.includes('ready')) && !mainWindow) {
         isNextReady = true;
         createWindow();
       }
@@ -96,7 +96,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', function () {
-  if (process.platform !== 'darwin') app.quit();
+  app.quit();
 });
 
 app.on('quit', () => {

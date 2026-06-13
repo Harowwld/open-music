@@ -2,15 +2,17 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { usePlayer, Track } from "@/context/PlayerContext";
-import { Search, Play, Pause, ListPlus, Library, Download, Loader2, Heart, Disc, Check } from "lucide-react";
+import { Search, Play, Pause, ListPlus, Download as DownloadIcon, Loader2, Heart, Disc, Check, CloudOff } from "lucide-react";
 import TrackContextMenu from "@/components/TrackContextMenu";
+import { useTrackSelection } from "@/hooks/useTrackSelection";
+import BulkActionBar from "@/components/BulkActionBar";
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const { playTrack, currentTrack, isPlaying, openAlbumModal, addToQueue, downloadingTrackIds, downloadedTrackIds, downloadTrack, history, removeDownload } = usePlayer();
+  const { playTrack, currentTrack, isPlaying, openAlbumModal, addToQueue, addMultipleToQueue, downloadingTrackIds, downloadedTrackIds, downloadTrack, downloadTracks, history, removeDownload, removeDownloads } = usePlayer();
   const [likedOverrides, setLikedOverrides] = useState<Record<string, boolean>>({});
 
   const recentTracks = useMemo(() => {
@@ -27,6 +29,10 @@ export default function SearchPage() {
     }
     return Array.from(deduped.values());
   }, [history, currentTrack]);
+
+  const displayedTracks = query.trim() ? results : recentTracks;
+
+  const { selectedTrackIds, handleMouseDown, handleMouseEnter, clearSelection, selectAll, withSelectionGuard } = useTrackSelection(displayedTracks);
 
   const [suggestions, setSuggestions] = useState<Track[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -75,6 +81,7 @@ export default function SearchPage() {
     setShowSuggestions(false);
     setIsLoading(true);
     setError("");
+    clearSelection();
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
       if (!res.ok) throw new Error("Failed to search");
@@ -131,6 +138,26 @@ export default function SearchPage() {
     }
   };
 
+  const handleBulkQueue = () => {
+    const selectedTracks = displayedTracks.filter(t => selectedTrackIds.has(t.id));
+    addMultipleToQueue(selectedTracks);
+    clearSelection();
+  };
+
+  const handleBulkDownload = async () => {
+    const selectedTracks = displayedTracks.filter(t => selectedTrackIds.has(t.id));
+    if (selectedTracks.length === 0) return;
+    downloadTracks(selectedTracks);
+    clearSelection();
+  };
+
+  const handleBulkRemoveDownload = async () => {
+    const selectedTracks = displayedTracks.filter(t => selectedTrackIds.has(t.id));
+    if (selectedTracks.length === 0) return;
+    await removeDownloads(selectedTracks);
+    clearSelection();
+  };
+
   const formatDuration = (val?: number | string) => {
     if (!val) return "";
     if (typeof val === 'string' && val.includes(':') && !val.includes('NaN')) return val;
@@ -142,7 +169,7 @@ export default function SearchPage() {
   };
 
   return (
-    <div className="p-8 pb-32 drag-region">
+    <div className="p-8 pb-32 drag-region select-none">
       {/* Draggable spacer for window controls */}
       <div className="h-4 w-full shrink-0" />
       
@@ -193,26 +220,30 @@ export default function SearchPage() {
           </div>
         )}
 
-        {!isLoading && (query.trim() ? results.length > 0 : recentTracks.length > 0) && (
+        {!isLoading && displayedTracks.length > 0 && (
           <div>
             <h2 className="text-2xl font-bold mb-6 text-white">
               {query.trim() ? "Search Results" : "Recently Played"}
             </h2>
             <div className="flex flex-col gap-2">
-              {(query.trim() ? results : recentTracks).map((rawTrack) => {
+              {displayedTracks.map((rawTrack) => {
                 const track = { ...rawTrack, isLiked: likedOverrides[rawTrack.id] !== undefined ? likedOverrides[rawTrack.id] : rawTrack.isLiked };
                 const isCurrentlyPlaying = currentTrack?.id === track.id;
+                const isSelected = selectedTrackIds.has(track.id);
+                const isSelectionActive = selectedTrackIds.size > 0;
                 
                 return (
                   <div
                     key={track.id}
-                    onClick={() => playTrack(track)}
-                    onContextMenu={(e) => handleContextMenu(e, track)}
-                    className={`flex items-center justify-between p-3 rounded-md cursor-pointer hover:bg-[var(--card-hover)] transition-colors group press-scale ${
-                      isCurrentlyPlaying ? "bg-[var(--card-hover)]" : ""
-                    }`}
+                    onClick={withSelectionGuard(track.id, () => playTrack(track))}
+                    onMouseDown={(e) => handleMouseDown(e, track.id)}
+                    onMouseEnter={() => handleMouseEnter(track.id)}
+                    onContextMenu={(e) => !isSelectionActive && handleContextMenu(e, track)}
+                    className={`flex items-center justify-between p-3 rounded-md cursor-pointer transition-colors group press-scale ${
+                      isCurrentlyPlaying && !isSelectionActive ? "bg-[var(--card-hover)]" : "hover:bg-[var(--card-hover)]"
+                    } ${isSelected ? "bg-[var(--brand-gold)]/20 border border-[var(--brand-gold)]/50" : "border border-transparent"}`}
                   >
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 pointer-events-none">
                       <div className="relative w-12 h-12 rounded overflow-hidden shadow-md flex-shrink-0 bg-[var(--card-bg)]">
                         {track.thumbnail && (
                           <img
@@ -221,16 +252,18 @@ export default function SearchPage() {
                             className="object-cover w-full h-full"
                           />
                         )}
-                        <div className="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center">
-                          {isCurrentlyPlaying && isPlaying ? (
-                             <Pause className="w-5 h-5 text-white fill-current" />
-                          ) : (
-                             <Play className="w-5 h-5 text-white fill-current ml-0.5" />
-                          )}
-                        </div>
+                        {!isSelectionActive && (
+                          <div className="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center">
+                            {isCurrentlyPlaying && isPlaying ? (
+                               <Pause className="w-5 h-5 text-white fill-current" />
+                            ) : (
+                               <Play className="w-5 h-5 text-white fill-current ml-0.5" />
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-col">
-                        <span className={`font-semibold ${isCurrentlyPlaying ? "text-[var(--brand-gold)]" : "text-white"}`}>
+                        <span className={`font-semibold ${isCurrentlyPlaying && !isSelectionActive ? "text-[var(--brand-gold)]" : "text-white"}`}>
                           {track.title}
                         </span>
                         <span className="text-sm text-[var(--text-muted)] flex items-center gap-1.5">
@@ -243,16 +276,18 @@ export default function SearchPage() {
                         </span>
                       </div>
                     </div>
-                    <div className="text-sm text-[var(--text-muted)] flex items-center gap-4">
-                      <button 
-                        onClick={(e) => toggleLike(track, e)}
-                        className={`transition-colors ${track.isLiked ? 'text-[var(--brand-gold)]' : 'text-[var(--text-muted)] hover:text-white'}`}
-                        title={track.isLiked ? "Unlike" : "Like"}
-                      >
-                        <Heart className={`w-5 h-5 ${track.isLiked ? 'fill-current' : ''}`} />
-                      </button>
-                      {formatDuration(track.duration)}
-                    </div>
+                    {!isSelectionActive && (
+                      <div className="text-sm text-[var(--text-muted)] flex items-center gap-4">
+                        <button 
+                          onClick={(e) => toggleLike(track, e)}
+                          className={`transition-colors ${track.isLiked ? 'text-[var(--brand-gold)]' : 'text-[var(--text-muted)] hover:text-white'}`}
+                          title={track.isLiked ? "Unlike" : "Like"}
+                        >
+                          <Heart className={`w-5 h-5 ${track.isLiked ? 'fill-current' : ''}`} />
+                        </button>
+                        {formatDuration(track.duration)}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -260,6 +295,20 @@ export default function SearchPage() {
           </div>
         )}
       </div>
+
+      <BulkActionBar selectedCount={selectedTrackIds.size} onClear={clearSelection}>
+        <button onClick={selectAll} className="text-sm font-medium hover:text-white text-[var(--text-muted)] px-2">Select All</button>
+        <div className="w-px h-4 bg-white/10 mx-1"></div>
+        <button onClick={handleBulkQueue} className="text-[var(--text-muted)] hover:text-white transition-colors" title="Add to Queue">
+          <ListPlus className="w-5 h-5" />
+        </button>
+        <button onClick={handleBulkDownload} className="text-[var(--text-muted)] hover:text-white transition-colors" title="Download">
+          <DownloadIcon className="w-5 h-5" />
+        </button>
+        <button onClick={handleBulkRemoveDownload} className="text-[var(--text-muted)] hover:text-red-400 transition-colors" title="Remove Downloads">
+          <CloudOff className="w-5 h-5" />
+        </button>
+      </BulkActionBar>
 
       {/* Context Menu Overlay */}
       {contextMenu && (

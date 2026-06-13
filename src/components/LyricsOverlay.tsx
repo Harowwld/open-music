@@ -10,7 +10,7 @@ interface LyricLine {
 }
 
 export default function LyricsOverlay() {
-  const { currentTrack, progress, showLyrics } = usePlayer();
+  const { currentTrack, progress, showLyrics, seekTo } = usePlayer();
   const [lyrics, setLyrics] = useState<LyricLine[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,21 +74,26 @@ export default function LyricsOverlay() {
   }, [currentTrack]);
 
   // Auto-scroll logic
+  const LYRIC_ADVANCE_SEC = 0.5; // Advance lyrics by 500ms for better UX
   const activeIndex = lyrics.reduce((acc, curr, index) => {
-    if (curr.time !== null && progress >= curr.time) {
+    if (curr.time !== null && progress >= curr.time - LYRIC_ADVANCE_SEC) {
       return index;
     }
     return acc;
   }, -1);
 
   useEffect(() => {
-    if (activeLineRef.current && scrollRef.current) {
-      activeLineRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      });
+    if (showLyrics && !loading && activeLineRef.current && scrollRef.current) {
+      // Small timeout to ensure DOM has painted the refs before scrolling,
+      // especially important when opening the overlay for the first time
+      setTimeout(() => {
+        activeLineRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }, 50);
     }
-  }, [activeIndex]);
+  }, [activeIndex, showLyrics, loading]);
 
   if (!currentTrack || !showLyrics) return null;
 
@@ -134,7 +139,10 @@ export default function LyricsOverlay() {
                 <p 
                   key={index} 
                   ref={isActive ? activeLineRef : null}
-                  className={`text-3xl md:text-5xl font-bold text-white transition-all duration-500 leading-tight cursor-default ${opacityClass} ${isActive ? 'scale-105 origin-left shadow-black drop-shadow-xl' : ''}`}
+                  onClick={() => {
+                    if (line.time !== null) seekTo(line.time);
+                  }}
+                  className={`text-3xl md:text-5xl font-bold text-white transition-all duration-500 leading-tight ${hasTimestamps ? 'cursor-pointer hover:text-[var(--brand-gold)]' : 'cursor-default'} ${opacityClass} ${isActive ? 'scale-105 origin-left shadow-black drop-shadow-xl' : ''}`}
                 >
                   {line.text || "♪"}
                 </p>

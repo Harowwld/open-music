@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 23456",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 23456",
     "lint": "eslint",
-    "dev:mac": "concurrently \"pnpm run dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "dev:mac": "concurrently \"pnpm run dev\" \"wait-on http://localhost:23456 && electron .\"",
     "build:mac": "pnpm run build && mkdir -p .next/standalone/public .next/standalone/.next/static && cp -R public/* .next/standalone/public/ && cp -R .next/static/* .next/standalone/.next/static/ && node scripts/fix-native-modules.mjs && electron-builder -m",
     "build:win": "pnpm run build && mkdir -p .next/standalone/public .next/standalone/.next/static && cp -R public/* .next/standalone/public/ && cp -R .next/static/* .next/standalone/.next/static/ && node scripts/fix-native-modules.mjs && electron-builder -w"
   },
