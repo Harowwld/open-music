@@ -35,6 +35,7 @@ interface PlayerContextType {
   playPrevious: () => void;
   playFromQueue: (index: number) => void;
   clearQueue: () => void;
+  removeFromQueue: (index: number) => void;
   ytPlayer: any | null;
   setYtPlayer: (player: any) => void;
   nativePlayerRef: React.RefObject<HTMLAudioElement | null>;
@@ -46,9 +47,11 @@ interface PlayerContextType {
   openAlbumModal: (trackOrTracks: Track | Track[]) => void;
   closeAlbumModal: () => void;
   downloadProgress: { total: number; current: number } | null;
+  deleteProgress: { total: number; current: number } | null;
   downloadTracks: (tracks: Track[]) => Promise<void>;
   downloadingTrackIds: Set<string>;
   downloadedTrackIds: Set<string>;
+  deletingTrackIds: Set<string>;
   downloadTrack: (track: Track) => Promise<void>;
   removeDownload: (track: Track) => Promise<void>;
   removeDownloads: (tracks: Track[]) => Promise<void>;
@@ -67,9 +70,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [history, setHistory] = useState<Track[]>([]);
   const [albumModalTracks, setAlbumModalTracks] = useState<Track[] | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<{ total: number; current: number } | null>(null);
+  const [deleteProgress, setDeleteProgress] = useState<{ total: number; current: number } | null>(null);
   
   const [downloadingTrackIds, setDownloadingTrackIds] = useState<Set<string>>(new Set());
   const [downloadedTrackIds, setDownloadedTrackIds] = useState<Set<string>>(new Set());
+  const [deletingTrackIds, setDeletingTrackIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetch('/api/downloaded')
@@ -81,6 +86,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
       })
       .catch(err => console.error(err));
   }, []);
+
+  const updateTrackState = (trackId: string, updates: Partial<Track>) => {
+    setCurrentTrack(prev => (prev?.id === trackId ? { ...prev, ...updates } : prev));
+    setQueue(prev => prev.map(t => (t.id === trackId ? { ...t, ...updates } : t)));
+    setHistory(prev => prev.map(t => (t.id === trackId ? { ...t, ...updates } : t)));
+  };
   
   const openAlbumModal = (trackOrTracks: Track | Track[]) => {
     setAlbumModalTracks(Array.isArray(trackOrTracks) ? trackOrTracks : [trackOrTracks]);
@@ -100,11 +111,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         body: JSON.stringify(track)
       });
       if (res.ok) {
+        const data = await res.json();
         setDownloadedTrackIds(prev => {
           const next = new Set(prev);
           next.add(track.id);
           return next;
         });
+        updateTrackState(track.id, { isOffline: true, local_path: data.local_path });
       }
     } catch (e) {
       console.error("Failed to download", track.title);
@@ -118,6 +131,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const removeDownload = async (track: Track) => {
+    setDeletingTrackIds(prev => {
+      const next = new Set(prev);
+      next.add(track.id);
+      return next;
+    });
     try {
       const res = await fetch(`/api/download?id=${track.id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -126,19 +144,35 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
           next.delete(track.id);
           return next;
         });
+        updateTrackState(track.id, { isOffline: false, local_path: undefined });
       }
     } catch (e) {
       console.error("Failed to remove download", track.title);
+    } finally {
+      setDeletingTrackIds(prev => {
+        const next = new Set(prev);
+        next.delete(track.id);
+        return next;
+      });
     }
   };
 
   const removeDownloads = async (tracksToRemove: Track[]) => {
-    if (tracksToRemove.length === 0) return;
-    for (const track of tracksToRemove) {
-      if (downloadedTrackIds.has(track.id)) {
-        await removeDownload(track);
-      }
+    const offlineTracks = tracksToRemove.filter(t => downloadedTrackIds.has(t.id));
+    if (offlineTracks.length === 0) return;
+    
+    setDeleteProgress({ total: offlineTracks.length, current: 0 });
+    let deletedCount = 0;
+    
+    for (const track of offlineTracks) {
+      await removeDownload(track);
+      deletedCount++;
+      setDeleteProgress({ total: offlineTracks.length, current: deletedCount });
     }
+    
+    setTimeout(() => {
+      setDeleteProgress(null);
+    }, 2000);
   };
 
   const downloadTracks = async (tracksToDownload: Track[]) => {
@@ -166,11 +200,13 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
             body: JSON.stringify(track)
           });
           if (res.ok) {
+             const data = await res.json();
              setDownloadedTrackIds(prev => {
                const next = new Set(prev);
                next.add(track.id);
                return next;
              });
+             updateTrackState(track.id, { isOffline: true, local_path: data.local_path });
           }
         } catch (e) {
           console.error("Failed to download", track.title);
@@ -343,6 +379,14 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
     setQueue([]);
   };
 
+  const removeFromQueue = (index: number) => {
+    setQueue(prev => {
+      const next = [...prev];
+      next.splice(index, 1);
+      return next;
+    });
+  };
+
   const playPrevious = () => {
     if (progress > 3) {
       seekTo(0);
@@ -480,6 +524,7 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         playPrevious,
         playFromQueue,
         clearQueue,
+        removeFromQueue,
         ytPlayer,
         setYtPlayer,
         nativePlayerRef,
@@ -491,9 +536,11 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
         openAlbumModal,
         closeAlbumModal,
         downloadProgress,
+        deleteProgress,
         downloadTracks,
         downloadingTrackIds,
         downloadedTrackIds,
+        deletingTrackIds,
         downloadTrack,
         removeDownload,
         removeDownloads,

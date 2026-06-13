@@ -12,7 +12,7 @@ export default function SearchPage() {
   const [results, setResults] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const { playTrack, currentTrack, isPlaying, openAlbumModal, addToQueue, addMultipleToQueue, downloadingTrackIds, downloadedTrackIds, downloadTrack, downloadTracks, history, removeDownload, removeDownloads } = usePlayer();
+  const { playTrack, currentTrack, isPlaying, openAlbumModal, addToQueue, addMultipleToQueue, downloadingTrackIds, downloadedTrackIds, deletingTrackIds, downloadTrack, downloadTracks, history, removeDownload, removeDownloads } = usePlayer();
   const [likedOverrides, setLikedOverrides] = useState<Record<string, boolean>>({});
 
   const recentTracks = useMemo(() => {
@@ -269,6 +269,8 @@ export default function SearchPage() {
                         <span className="text-sm text-[var(--text-muted)] flex items-center gap-1.5">
                           {downloadingTrackIds.has(track.id) ? (
                             <Loader2 className="w-3.5 h-3.5 text-[var(--brand-gold)] animate-spin" />
+                          ) : deletingTrackIds.has(track.id) ? (
+                            <Loader2 className="w-3.5 h-3.5 text-red-400 animate-spin" />
                           ) : downloadedTrackIds.has(track.id) ? (
                             <Check className="w-3.5 h-3.5 text-[var(--brand-gold)]" />
                           ) : null}

@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { usePlayer } from "@/context/PlayerContext";
+import { usePlayer, Track } from "@/context/PlayerContext";
 import YouTube from "react-youtube";
-import { Quote, Volume2, MoreHorizontal, ListPlus, Library, Download, Heart, Disc, SkipBack, SkipForward, ListMusic, X, Play } from "lucide-react";
+import { Quote, Volume2, MoreHorizontal, ListPlus, Library, Download, Heart, Disc, SkipBack, SkipForward, ListMusic, X, Play, Trash2, CloudOff } from "lucide-react";
 import TrackContextMenu from "@/components/TrackContextMenu";
+import { useTrackSelection } from "@/hooks/useTrackSelection";
+import BulkActionBar from "@/components/BulkActionBar";
 
 export default function GlobalPlayer() {
   const {
@@ -31,12 +33,23 @@ export default function GlobalPlayer() {
     playTrack,
     playFromQueue,
     clearQueue,
+    removeFromQueue,
     queue,
     history,
+    downloadTracks
   } = usePlayer();
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
   const [showQueuePanel, setShowQueuePanel] = useState(false);
+
+  const { selectedTrackIds, handleMouseDown, handleMouseEnter, clearSelection, selectAll, withSelectionGuard } = useTrackSelection(queue);
+
+  // Clear selection if queue closes
+  useEffect(() => {
+    if (!showQueuePanel) {
+      clearSelection();
+    }
+  }, [showQueuePanel, clearSelection]);
 
   useEffect(() => {
     const handleClickOutside = () => setContextMenu(null);
@@ -94,9 +107,6 @@ export default function GlobalPlayer() {
   };
 
   const onStateChange = (event: any) => {
-    // PlayerState.PLAYING = 1
-    // PlayerState.PAUSED = 2
-    // PlayerState.ENDED = 0
     if (event.data === 1) {
       setIsPlaying(true);
       setDuration(event.target.getDuration());
@@ -111,7 +121,6 @@ export default function GlobalPlayer() {
     if (!currentTrack) return;
     const currentlyLiked = currentTrack.isLiked;
     
-    // Optimistic UI update
     updateCurrentTrack({ isLiked: !currentlyLiked });
     
     try {
@@ -125,14 +134,35 @@ export default function GlobalPlayer() {
         });
       }
     } catch (e) {
-      // Revert if failed
       updateCurrentTrack({ isLiked: currentlyLiked });
       alert('Failed to update library status');
     }
   };
 
+  const handleBulkRemoveFromQueue = () => {
+    // Find all indices that match the selected track IDs, from back to front to avoid shifting issues
+    const indicesToRemove: number[] = [];
+    queue.forEach((t, i) => {
+      if (selectedTrackIds.has(t.id)) indicesToRemove.push(i);
+    });
+    
+    // Sort descending
+    indicesToRemove.sort((a, b) => b - a).forEach(index => {
+      removeFromQueue(index);
+    });
+    clearSelection();
+  };
+
+  const handleBulkDownload = () => {
+    const selectedTracks = queue.filter(t => selectedTrackIds.has(t.id));
+    if (selectedTracks.length > 0) {
+      downloadTracks(selectedTracks);
+    }
+    clearSelection();
+  };
+
   return (
-    <div className="h-24 bg-[var(--player-bg)] border-t border-[var(--border-color)] px-4 flex items-center justify-between z-50 relative">
+    <div className="h-24 bg-[var(--player-bg)] border-t border-[var(--border-color)] px-4 flex items-center justify-between z-50 relative select-none">
       {/* Hidden YouTube Player */}
       {currentTrack && !currentTrack.isOffline && (
         <div className="hidden">
@@ -337,14 +367,27 @@ export default function GlobalPlayer() {
       {/* Queue Panel Overlay */}
       {showQueuePanel && (
         <div className="fixed bottom-24 right-0 w-80 max-h-[60vh] bg-[var(--card-bg)] border-t border-l border-[var(--border-color)] shadow-2xl rounded-tl-xl flex flex-col z-[90] overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)] bg-[var(--player-bg)]">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)] bg-[var(--player-bg)] shrink-0 z-10">
             <h3 className="font-semibold text-white">Queue</h3>
-            <button onClick={() => setShowQueuePanel(false)} className="text-[var(--text-muted)] hover:text-white transition-colors">
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              {selectedTrackIds.size > 0 && (
+                <>
+                  <button onClick={handleBulkDownload} className="text-[var(--text-muted)] hover:text-white transition-colors p-1" title="Download Selected">
+                    <Download className="w-4 h-4" />
+                  </button>
+                  <button onClick={handleBulkRemoveFromQueue} className="text-[var(--text-muted)] hover:text-red-400 transition-colors p-1" title="Remove Selected from Queue">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                  <div className="w-px h-4 bg-white/10 mx-1"></div>
+                </>
+              )}
+              <button onClick={() => setShowQueuePanel(false)} className="text-[var(--text-muted)] hover:text-white transition-colors p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
           
-          <div className="overflow-y-auto flex-1 p-2 custom-scrollbar">
+          <div className="overflow-y-auto flex-1 p-2 custom-scrollbar relative">
             {currentTrack && (
               <div className="mb-4">
                 <div className="text-xs font-bold text-[var(--brand-gold)] px-2 mb-2 uppercase tracking-wider">Now Playing</div>
@@ -373,29 +416,39 @@ export default function GlobalPlayer() {
                   <div className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Next In Queue</div>
                   <button onClick={clearQueue} className="text-xs text-[var(--text-muted)] hover:text-white transition-colors uppercase tracking-wider font-bold">Clear</button>
                 </div>
-                <div className="flex flex-col gap-1">
-                  {queue.map((track, i) => (
-                    <div 
-                      key={`${track.id}-${i}`} 
-                      className="flex items-center gap-3 p-2 rounded-md hover:bg-[var(--card-hover)] group transition-colors cursor-pointer"
-                      onClick={() => playFromQueue(i)}
-                    >
-                      <div className="w-10 h-10 rounded bg-[var(--border-color)] overflow-hidden shrink-0 relative flex items-center justify-center">
-                        {track.thumbnail ? (
-                          <img src={track.thumbnail} alt="" className="object-cover w-full h-full" />
-                        ) : (
-                          <Disc className="w-5 h-5 text-[var(--text-muted)]" />
-                        )}
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer">
-                          <Play className="w-4 h-4 text-white fill-white" />
+                <div className="flex flex-col gap-1 pb-16">
+                  {queue.map((track, i) => {
+                    const isSelected = selectedTrackIds.has(track.id);
+                    const isSelectionActive = selectedTrackIds.size > 0;
+                    return (
+                      <div 
+                        key={`${track.id}-${i}`} 
+                        className={`flex items-center gap-3 p-2 rounded-md transition-colors cursor-pointer group ${
+                          isSelected ? "bg-[var(--brand-gold)]/20 border border-[var(--brand-gold)]/50" : "hover:bg-[var(--card-hover)] border border-transparent"
+                        }`}
+                        onClick={withSelectionGuard(track.id, () => playFromQueue(i))}
+                        onMouseDown={(e) => handleMouseDown(e, track.id)}
+                        onMouseEnter={() => handleMouseEnter(track.id)}
+                      >
+                        <div className="w-10 h-10 rounded bg-[var(--border-color)] overflow-hidden shrink-0 relative flex items-center justify-center pointer-events-none">
+                          {track.thumbnail ? (
+                            <img src={track.thumbnail} alt="" className="object-cover w-full h-full" />
+                          ) : (
+                            <Disc className="w-5 h-5 text-[var(--text-muted)]" />
+                          )}
+                          {!isSelectionActive && (
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer">
+                              <Play className="w-4 h-4 text-white fill-white" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col flex-1 min-w-0 pointer-events-none">
+                          <span className="text-sm font-medium text-white truncate">{track.title}</span>
+                          <span className="text-xs text-[var(--text-muted)] truncate">{track.artist}</span>
                         </div>
                       </div>
-                      <div className="flex flex-col flex-1 min-w-0">
-                        <span className="text-sm font-medium text-white truncate">{track.title}</span>
-                        <span className="text-xs text-[var(--text-muted)] truncate">{track.artist}</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : (

@@ -12,7 +12,7 @@ export default function AlbumViewPage({ params }: { params: Promise<{ id: string
   const [album, setAlbum] = useState<any>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const { playTrack, currentTrack, isPlaying, openAlbumModal, addToQueue, addMultipleToQueue, downloadTracks, downloadingTrackIds, downloadedTrackIds, downloadTrack, removeDownload, removeDownloads } = usePlayer();
+  const { playTrack, currentTrack, isPlaying, openAlbumModal, addToQueue, addMultipleToQueue, downloadTracks, downloadingTrackIds, downloadedTrackIds, deletingTrackIds, downloadTrack, removeDownload, removeDownloads } = usePlayer();
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, track: Track } | null>(null);
   
   const [searchQuery, setSearchQuery] = useState("");
@@ -263,6 +263,8 @@ export default function AlbumViewPage({ params }: { params: Promise<{ id: string
                     <span className="text-sm text-[var(--text-muted)] flex items-center gap-1.5">
                       {downloadingTrackIds.has(track.id) ? (
                         <Loader2 className="w-3.5 h-3.5 text-[var(--brand-gold)] animate-spin" />
+                      ) : deletingTrackIds.has(track.id) ? (
+                        <Loader2 className="w-3.5 h-3.5 text-red-400 animate-spin" />
                       ) : downloadedTrackIds.has(track.id) ? (
                         <Check className="w-3.5 h-3.5 text-[var(--brand-gold)]" />
                       ) : null}

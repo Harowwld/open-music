@@ -162,13 +162,21 @@ export async function DELETE(req: Request) {
 
     const track = db.prepare('SELECT local_path FROM tracks WHERE id = ?').get(id) as any;
     if (track && track.local_path) {
-      const dir = path.dirname(track.local_path);
-      if (fs.existsSync(dir)) {
-        const files = fs.readdirSync(dir);
-        const actualFiles = files.filter(f => f.startsWith(id + '.'));
-        for (const f of actualFiles) {
-          fs.unlinkSync(path.join(dir, f));
+      try {
+        const dir = path.dirname(track.local_path);
+        if (fs.existsSync(dir)) {
+          const files = fs.readdirSync(dir);
+          const actualFiles = files.filter(f => f.startsWith(id + '.'));
+          for (const f of actualFiles) {
+            try {
+              fs.unlinkSync(path.join(dir, f));
+            } catch (unlinkErr) {
+              console.error(`Failed to delete file ${f}:`, unlinkErr);
+            }
+          }
         }
+      } catch (dirErr) {
+        console.error(`Failed to process directory for track ${id}:`, dirErr);
       }
     }
 
