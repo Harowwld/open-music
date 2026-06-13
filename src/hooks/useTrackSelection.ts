@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Track } from '@/context/PlayerContext';
 
-export function useTrackSelection(tracks: Track[]) {
+export function useTrackSelection(tracks: Track[], isActive: boolean = true) {
   const [selectedTrackIds, setSelectedTrackIds] = useState<Set<string>>(new Set());
   const [isDragging, setIsDragging] = useState(false);
   const [dragMode, setDragMode] = useState<'select' | 'deselect' | null>(null);
@@ -19,6 +19,32 @@ export function useTrackSelection(tracks: Track[]) {
       window.removeEventListener('mouseup', handleMouseUp);
     };
   }, []);
+
+  const selectAll = useCallback(() => {
+    setSelectedTrackIds(new Set(tracks.map(t => t.id)));
+  }, [tracks]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input or textarea
+      if (
+        document.activeElement?.tagName === 'INPUT' || 
+        document.activeElement?.tagName === 'TEXTAREA'
+      ) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        selectAll();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isActive, selectAll]);
 
   const clearSelection = useCallback(() => {
     setSelectedTrackIds(new Set());
@@ -83,9 +109,7 @@ export function useTrackSelection(tracks: Track[]) {
     });
   }, []);
 
-  const selectAll = useCallback(() => {
-    setSelectedTrackIds(new Set(tracks.map(t => t.id)));
-  }, [tracks]);
+
 
   // Returns a click handler that only executes if we aren't selecting
   const withSelectionGuard = useCallback((trackId: string, callback: () => void) => {

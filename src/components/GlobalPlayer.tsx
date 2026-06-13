@@ -36,13 +36,14 @@ export default function GlobalPlayer() {
     removeFromQueue,
     queue,
     history,
-    downloadTracks
+    downloadTracks,
+    removeDownload
   } = usePlayer();
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
   const [showQueuePanel, setShowQueuePanel] = useState(false);
 
-  const { selectedTrackIds, handleMouseDown, handleMouseEnter, clearSelection, selectAll, withSelectionGuard } = useTrackSelection(queue);
+  const { selectedTrackIds, handleMouseDown, handleMouseEnter, clearSelection, selectAll, withSelectionGuard } = useTrackSelection(queue, showQueuePanel);
 
   // Clear selection if queue closes
   useEffect(() => {
@@ -209,6 +210,14 @@ export default function GlobalPlayer() {
           onEnded={() => playNext()}
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
+          onError={(e) => {
+            console.error("Native audio playback failed, falling back to streaming:", e);
+            if (currentTrack) {
+              updateCurrentTrack({ isOffline: false, local_path: undefined });
+              removeDownload(currentTrack).catch(console.error);
+              setIsPlaying(true); // Ensure it tries to play after fallback
+            }
+          }}
           className="hidden"
         />
       )}

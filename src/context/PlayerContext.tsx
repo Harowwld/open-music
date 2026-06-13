@@ -76,6 +76,12 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   const [downloadedTrackIds, setDownloadedTrackIds] = useState<Set<string>>(new Set());
   const [deletingTrackIds, setDeletingTrackIds] = useState<Set<string>>(new Set());
 
+  const downloadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const deleteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const downloadQueueRef = useRef<Track[]>([]);
+  const activeDownloadWorkersRef = useRef<number>(0);
+
   useEffect(() => {
     fetch('/api/downloaded')
       .then(res => res.json())
@@ -158,41 +164,46 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const removeDownloads = async (tracksToRemove: Track[]) => {
-    const offlineTracks = tracksToRemove.filter(t => downloadedTrackIds.has(t.id));
+    const offlineTracks = tracksToRemove.filter(t => downloadedTrackIds.has(t.id) && !deletingTrackIds.has(t.id));
     if (offlineTracks.length === 0) return;
+
+    if (deleteTimeoutRef.current) {
+      clearTimeout(deleteTimeoutRef.current);
+      deleteTimeoutRef.current = null;
+    }
     
-    setDeleteProgress({ total: offlineTracks.length, current: 0 });
-    let deletedCount = 0;
+    setDeleteProgress(prev => {
+      if (prev) return { total: prev.total + offlineTracks.length, current: prev.current };
+      return { total: offlineTracks.length, current: 0 };
+    });
     
     for (const track of offlineTracks) {
       await removeDownload(track);
-      deletedCount++;
-      setDeleteProgress({ total: offlineTracks.length, current: deletedCount });
+      setDeleteProgress(prev => {
+        if (!prev) return null;
+        const nextCurrent = prev.current + 1;
+        if (nextCurrent >= prev.total) {
+          if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
+          deleteTimeoutRef.current = setTimeout(() => {
+            setDeleteProgress(null);
+          }, 2000);
+        }
+        return { total: prev.total, current: nextCurrent };
+      });
     }
-    
-    setTimeout(() => {
-      setDeleteProgress(null);
-    }, 2000);
   };
 
-  const downloadTracks = async (tracksToDownload: Track[]) => {
-    if (tracksToDownload.length === 0) return;
-    setDownloadProgress({ total: tracksToDownload.length, current: 0 });
-    
-    let downloadedCount = 0;
-    const concurrencyLimit = 5;
-    const queueToDownload = [...tracksToDownload];
-    
-    setDownloadingTrackIds(prev => {
-      const next = new Set(prev);
-      tracksToDownload.forEach(t => next.add(t.id));
-      return next;
-    });
-    
-    const worker = async () => {
-      while (queueToDownload.length > 0) {
-        const track = queueToDownload.shift();
-        if (!track) break;
+  const processDownloadQueue = () => {
+    // Chrome limits connections per origin to 6. Using 10 blocks all navigation.
+    // Setting to 3 leaves 3 connections open for Next.js routing & images.
+    const concurrencyLimit = 3;
+    while (activeDownloadWorkersRef.current < concurrencyLimit && downloadQueueRef.current.length > 0) {
+      const track = downloadQueueRef.current.shift();
+      if (!track) break;
+      
+      activeDownloadWorkersRef.current++;
+      
+      (async () => {
         try {
           const res = await fetch('/api/download', {
             method: 'POST',
@@ -216,22 +227,52 @@ export const PlayerProvider = ({ children }: { children: ReactNode }) => {
             next.delete(track.id);
             return next;
           });
-          downloadedCount++;
-          setDownloadProgress({ total: tracksToDownload.length, current: downloadedCount });
+          setDownloadProgress(prev => {
+            if (!prev) return null;
+            const nextCurrent = prev.current + 1;
+            if (nextCurrent >= prev.total) {
+              if (downloadTimeoutRef.current) clearTimeout(downloadTimeoutRef.current);
+              downloadTimeoutRef.current = setTimeout(() => {
+                setDownloadProgress(null);
+              }, 2000);
+            }
+            return { total: prev.total, current: nextCurrent };
+          });
+          
+          activeDownloadWorkersRef.current--;
+          processDownloadQueue();
         }
-      }
-    };
-    
-    const workers = [];
-    for (let i = 0; i < Math.min(concurrencyLimit, tracksToDownload.length); i++) {
-      workers.push(worker());
+      })();
     }
+  };
+
+  const downloadTracks = async (tracksToDownload: Track[]) => {
+    // Prevent adding duplicates to the queue if they're already in it
+    const uniqueTracks = tracksToDownload.filter(t => 
+      !downloadedTrackIds.has(t.id) && 
+      !downloadingTrackIds.has(t.id) &&
+      !downloadQueueRef.current.some(qt => qt.id === t.id)
+    );
+    if (uniqueTracks.length === 0) return;
+
+    if (downloadTimeoutRef.current) {
+      clearTimeout(downloadTimeoutRef.current);
+      downloadTimeoutRef.current = null;
+    }
+
+    setDownloadProgress(prev => {
+      if (prev) return { total: prev.total + uniqueTracks.length, current: prev.current };
+      return { total: uniqueTracks.length, current: 0 };
+    });
     
-    await Promise.all(workers);
+    setDownloadingTrackIds(prev => {
+      const next = new Set(prev);
+      uniqueTracks.forEach(t => next.add(t.id));
+      return next;
+    });
     
-    setTimeout(() => {
-      setDownloadProgress(null);
-    }, 2000);
+    downloadQueueRef.current.push(...uniqueTracks);
+    processDownloadQueue();
   };
   
   const [ytPlayer, setYtPlayer] = useState<any | null>(null);

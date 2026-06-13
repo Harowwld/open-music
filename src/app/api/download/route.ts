@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       fs.mkdirSync(offlineDir, { recursive: true });
     }
 
-    const localPath = path.join(offlineDir, `${track.id}.webm`);
+    const outputTemplate = path.join(offlineDir, `${track.id}.%(ext)s`);
 
     // Bypass youtubedl wrapper because tinyspawn fails on paths with spaces (e.g. "Open Music.app")
     const { execFile } = require('child_process');
@@ -33,8 +33,8 @@ export async function POST(req: Request) {
     
     const args = [
       `https://www.youtube.com/watch?v=${track.id}`,
-      '-f', '251/bestaudio',
-      '--output', localPath,
+      '-f', 'bestaudio/best',
+      '--output', outputTemplate,
       '--no-warnings',
       '--no-check-certificates',
       '--extractor-args', 'youtube:player_client=android,web',
@@ -53,31 +53,6 @@ export async function POST(req: Request) {
       ? execFileAsync(pythonPath, [youtubedl.constants.YOUTUBE_DL_PATH, ...args])
       // @ts-ignore
       : execFileAsync(youtubedl.constants.YOUTUBE_DL_PATH, args);
-
-    // Save track details in the DB with local_path and isOffline
-    const stmt = db.prepare(`
-      INSERT INTO tracks (id, title, artist, album, thumbnail, duration, local_path, isOffline)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        title=excluded.title,
-        artist=excluded.artist,
-        album=excluded.album,
-        thumbnail=excluded.thumbnail,
-        duration=excluded.duration,
-        local_path=excluded.local_path,
-        isOffline=excluded.isOffline
-    `);
-
-    stmt.run(
-      track.id,
-      track.title,
-      track.artist,
-      track.album || null,
-      track.thumbnail || null,
-      track.duration || 0,
-      localPath,
-      1
-    );
 
     // Fetch and save lyrics for offline use
     // Fetch and save lyrics for offline use
@@ -144,7 +119,38 @@ export async function POST(req: Request) {
 
     fs.writeFileSync(path.join(offlineDir, `${track.id}.json`), JSON.stringify(fetchedLyrics));
 
-    return NextResponse.json({ success: true, message: 'Track downloaded successfully', local_path: localPath });
+    // Find the actual downloaded file to get the correct extension
+    const files = fs.readdirSync(offlineDir);
+    const actualFile = files.find(f => f.startsWith(track.id + '.') && !f.endsWith('.json'));
+    if (!actualFile) throw new Error('Downloaded file could not be found on disk');
+    const finalLocalPath = path.join(offlineDir, actualFile);
+
+    // Save track details in the DB with local_path and isOffline only AFTER successful download
+    const stmt = db.prepare(`
+      INSERT INTO tracks (id, title, artist, album, thumbnail, duration, local_path, isOffline)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        title=excluded.title,
+        artist=excluded.artist,
+        album=excluded.album,
+        thumbnail=excluded.thumbnail,
+        duration=excluded.duration,
+        local_path=excluded.local_path,
+        isOffline=excluded.isOffline
+    `);
+
+    stmt.run(
+      track.id,
+      track.title,
+      track.artist,
+      track.album || null,
+      track.thumbnail || null,
+      track.duration || 0,
+      finalLocalPath,
+      1
+    );
+
+    return NextResponse.json({ success: true, message: 'Track downloaded successfully', local_path: finalLocalPath });
   } catch (error: any) {
     console.error('Download error:', error);
     return NextResponse.json({ error: 'Failed to download track: ' + error.message }, { status: 500 });

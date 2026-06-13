@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import fs from 'fs';
 import path from 'path';
+import { Readable } from 'stream';
 
 export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -62,9 +63,9 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
 
       const chunksize = (end - start) + 1;
       const fileStream = fs.createReadStream(filePath, { start, end });
+      const webStream = Readable.toWeb(fileStream as any);
 
-      // @ts-ignore
-      return new NextResponse(fileStream, {
+      return new NextResponse(webStream as any, {
         status: 206,
         headers: {
           'Content-Range': `bytes ${start}-${end}/${fileSize}`,
@@ -75,9 +76,9 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
       });
     } else {
       const fileStream = fs.createReadStream(filePath);
+      const webStream = Readable.toWeb(fileStream as any);
 
-      // @ts-ignore
-      return new NextResponse(fileStream, {
+      return new NextResponse(webStream as any, {
         status: 200,
         headers: {
           'Content-Length': fileSize.toString(),
